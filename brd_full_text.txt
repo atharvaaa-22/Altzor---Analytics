@@ -1,0 +1,318 @@
+Business Requirements Document: AI-Powered Research and Analytics Platform
+1. Executive Summary & Vision
+This Business Requirements Document (BRD) outlines the specifications for developing a cutting-edge AI-powered research and analytics platform, designed to serve as a direct competitor and functional replica of Wisdom.ai. The platform's core value proposition is to democratize data analytics within enterprises, enabling non-technical business users to effortlessly query complex datasets using natural language, receive instant, accurate insights, and generate dynamic visualizations and narrative summaries. By leveraging advanced AI and machine learning capabilities, the platform will transform raw data into actionable intelligence, significantly reducing time-to-insight and reliance on specialized data teams.
+
+Vision: To empower every business user with intuitive, governed, and intelligent access to enterprise data, fostering a data-driven culture and accelerating decision-making across organizations.
+
+Target Audience: Enterprise business users, data analysts, department heads, and IT administrators seeking self-service analytics, robust data governance, and scalable AI-driven insights.
+
+Primary Objectives:
+OBJ-001: Enable self-service data exploration and analysis for non-technical users.
+OBJ-002: Provide transparent, auditable, and accurate AI-generated insights.
+OBJ-003: Support multi-source enterprise data environments with robust connectivity and semantic layering.
+OBJ-004: Deliver enterprise-grade performance, scalability, security, and compliance.
+OBJ-005: Achieve feature parity with Wisdom.ai, with opportunities for differentiation through superior user experience and advanced AI capabilities.
+
+2. Scope of Work
+This section defines the boundaries of the initial production release (V1) of the AI-powered research and analytics platform.
+
+2.1. In-Scope (V1 Production Release)
+Conversational Query Interface: A chat-style user interface allowing natural language queries, multi-turn conversations, and historical context retention.
+Multi-Database Connectivity: Support for PostgreSQL, MySQL, SQL Server, Snowflake, BigQuery, and MongoDB, with secure credential management and schema auto-discovery.
+AI-Powered SQL Generation & Validation: Natural Language to SQL (NL2SQL) translation using large language models (LLMs), with robust SQL validation, safety checks, and dialect-specific generation.
+Query Execution & Results: Efficient execution of generated SQL queries, result streaming for large datasets, caching mechanisms, and detailed metadata (row count, execution time, cost estimate).
+Data Visualization & AI Insights: Automatic detection of optimal chart types, interactive chart rendering (KPI cards, bar, line, pie, scatter, heatmap, funnel, table), user-overrideable visualization types, and AI-generated narrative summaries.
+Dashboard Builder: A responsive drag-and-drop dashboard interface with various widget types (charts, KPI cards, data tables, text/markdown annotations), dashboard-level filters, sharing capabilities, and management functions (duplication, archiving, deletion).
+File Upload & Ad-hoc Querying: Support for CSV, Excel (.xlsx), JSON, and PDF (text extraction) file uploads, with parsed data loaded into ephemeral tables for querying.
+Saved Queries & Templates: Functionality to save conversation queries, manage a query library with search/filter/sort, and create parameterizable query templates.
+Authentication & Authorization: JWT-based authentication, Role-Based Access Control (RBAC) at API and UI levels, password hashing, inactivity auto-logout, and rate limiting on login attempts.
+Semantic Layer: Admin-defined business metrics and dimensions, versioned and immutable, to provide a consistent understanding of data across the organization.
+Core Non-Functional Requirements: Initial implementation of performance, scalability, availability, security, and maintainability as detailed in Section 5.
+Basic Collaboration: Sharing of dashboards and saved queries with specific organizational members.
+Data Lineage: Basic data lineage panel showing source tables, columns, filters, and aggregations.
+Confidence Scoring: Display of LLM self-reported confidence scores for generated insights.
+
+2.2. Out-of-Scope (V1 Production Release)
+Advanced SSO/MFA: OAuth 2.0 / SAML 2.0 for enterprise IdP integration and Two-Factor Authentication (TOTP) are planned for future phases.
+Multi-Region Deployment: AWS multi-region deployment (us-east-1, eu-west-1, ap-south-1) is planned for future phases.
+Advanced Data Transformation: Complex ETL/ELT capabilities beyond basic file parsing and ephemeral table creation.
+Advanced Agentic Workflows: Fully autonomous, multi-step AI agents that trigger external actions (beyond data querying and visualization) are for future phases.
+Real-time Data Streaming Integrations: Direct integration with real-time data streams (e.g., Kafka, Kinesis) for live analytics.
+Custom Machine Learning Model Deployment: Functionality for users to deploy and manage their own custom ML models within the platform.
+
+3. Core Functional Requirements
+3.1. User Authentication & Authorization
+REQ-AUTH-001: The platform SHALL implement JWT-based authentication with 15-minute access tokens and 7-day refresh token rotation, stored in httpOnly cookies.
+REQ-AUTH-002: The platform SHALL enforce Role-Based Access Control (RBAC) at both the API middleware and React component levels, ensuring zero UI leakage of unauthorized actions.
+REQ-AUTH-003: User passwords SHALL be hashed using bcrypt with a cost factor of at least 12.
+REQ-AUTH-004: Password complexity rules SHALL be enforced, requiring a minimum of 8 characters with a combination of uppercase, lowercase, numbers, and special characters.
+REQ-AUTH-005: User sessions SHALL automatically log out after 30 minutes of inactivity.
+REQ-AUTH-006: User sessions SHALL be invalidated upon password change.
+REQ-AUTH-007: The platform SHALL implement rate limiting on login attempts, locking accounts for 15 minutes after 5 failed attempts and triggering brute-force alerts.
+REQ-AUTH-008: The platform SHALL support the following user roles with defined permissions:
+Super Admin: All permissions across all organizations, system configuration, user management, and billing.
+Org Admin: Create/delete users, manage roles, configure connections, approve queries, view audit logs, manage metrics, and custom branding.
+Analyst: Create conversations, upload files, build dashboards, save/share queries, and create reports (subject to quotas & approval).
+Viewer: View shared dashboards, apply filters, and export data views (read-only, no query creation).
+
+3.2. Database Connectivity & Schema Discovery
+REQ-DB-001: The platform SHALL support connections to PostgreSQL (14+), MySQL (8.0+), Microsoft SQL Server (2019+), Snowflake, Google BigQuery, and MongoDB (6+).
+REQ-DB-002: Database credentials SHALL be encrypted with AES-256-GCM before storage and decrypted only at query execution time, never logged.
+REQ-DB-003: The platform SHALL implement connection pooling per organization, with idle connection cleanup every 5 minutes.
+REQ-DB-004: The platform SHALL perform schema auto-discovery, identifying tables, columns, data types, primary keys, foreign keys, row counts, and sample values (5 per column).
+REQ-DB-005: Schema metadata SHALL be cached in Redis with a 5-minute TTL, with a manual refresh option available to Org Admins.
+REQ-DB-006: The platform SHALL dynamically chunk schemas with more than 100 tables to stay within LLM context limits.
+
+3.3. Conversational Query Interface
+REQ-CQI-001: The platform SHALL provide a chat-style React UI with streaming response display using Server-Sent Events (SSE).
+REQ-CQI-002: Multi-turn conversations SHALL retain full context, sending the last 20 messages to the LLM for each new query.
+REQ-CQI-003: A conversation history sidebar SHALL be available, allowing users to search, reload, and view auto-generated titles for conversations.
+REQ-CQI-004: The platform SHALL support follow-up questions that reference prior results (e.g., "filter that by last 30 days").
+REQ-CQI-005: Query generation SHALL primarily use the Claude API (claude-sonnet-4-6), with the Gemini API as a fallback.
+REQ-CQI-006: The prompt for LLM query generation SHALL include schema metadata, conversation history, semantic metrics/dimensions, and database dialect instructions.
+REQ-CQI-007: A SQL validation pipeline SHALL be implemented, including syntax checks, safety checks (no DML/DDL), injection pattern detection, and performance guardrails (e.g., LIMIT enforcement).
+REQ-CQI-008: Generated SQL SHALL always be displayed to the user with a copy button and an expandable view for long queries.
+REQ-CQI-009: The platform SHALL support database-dialect-specific SQL generation for PostgreSQL, MySQL, T-SQL, BigQuery SQL, Snowflake SQL, and MongoDB aggregation.
+REQ-CQI-010: User feedback buttons (thumbs up/down) SHALL be available on each response, with failures logged for prompt tuning.
+REQ-CQI-011: Graceful error messages SHALL be displayed for LLM timeouts, schema staleness, cost limits, and pending query approvals.
+
+3.4. Query Execution & Results
+REQ-QER-001: Query execution SHALL have a default 30-second timeout, configurable per organization by an Admin (max 5 minutes).
+REQ-QER-002: The platform SHALL implement result streaming for large datasets to avoid loading full result sets into Node.js memory.
+REQ-QER-003: Results SHALL be returned with metadata including row count, execution time (ms), cost estimate, and column data types.
+REQ-QER-004: A Redis result cache SHALL be implemented with a 1-hour TTL, using org_id + hash(sql + connection_id) as the cache key.
+REQ-QER-005: An execution plan SHALL be shown for queries exceeding 2 seconds, with one-click optimization suggestions.
+REQ-QER-006: Users SHALL be able to export results in CSV, JSON, and Excel (.xlsx) formats (Excel export via SheetJS on the React frontend).
+REQ-QER-007: Read-only enforcement SHALL be implemented at the database driver level, preventing INSERT, UPDATE, DELETE, DROP, TRUNCATE, and ALTER operations.
+
+3.5. Data Visualization & AI Insights
+REQ-DVI-001: The platform SHALL auto-detect result shapes and suggest optimal chart types (KPI card, bar, line, pie, scatter, heatmap, funnel, table).
+REQ-DVI-002: Chart rendering SHALL be performed using Recharts (React), ensuring responsiveness, accessibility, and support for click-to-drill-down functionality.
+REQ-DVI-003: Users SHALL be able to override the suggested visualization type from a picker, with settings persisted per saved query.
+REQ-DVI-004: The platform SHALL generate a 1–3 sentence narrative summary for each result, highlighting key trends and anomalies.
+REQ-DVI-005: A data lineage panel SHALL display source table(s), columns used, filters, aggregations, and rows scanned vs. returned.
+REQ-DVI-006: A confidence score (LLM self-reported) SHALL be displayed for each insight, with low-confidence results flagged with a warning badge.
+
+3.6. Dashboard Builder
+REQ-DB-007: The dashboard builder SHALL feature a 12-column responsive drag-and-drop grid (using react-grid-layout), allowing widgets to be resized and reordered.
+REQ-DB-008: Supported widget types SHALL include charts, KPI cards, data tables, and text/markdown annotations.
+REQ-DB-009: Users SHALL be able to add widgets from saved queries or by typing new natural-language questions.
+REQ-DB-010: Dashboard-level date range and filter controls SHALL apply across all widgets on the dashboard.
+REQ-DB-011: A manual refresh button and per-widget last-refreshed timestamp SHALL be provided.
+REQ-DB-012: Dashboards SHALL be shareable via view-only links for organization members, with an optional public link for Org Admins.
+REQ-DB-013: The platform SHALL support dashboard duplication, archiving, and deletion with confirmation.
+REQ-DB-014: Dashboards SHALL support cross-filtering, where interactions (e.g., clicking a bar in a chart) on one widget dynamically filter data in other related widgets on the same dashboard.
+REQ-DB-015: Dashboards SHALL support drill-down and drill-through capabilities, allowing users to explore underlying data details by clicking on specific data points or elements within a visualization.
+
+3.7. File Upload & Ad-hoc Querying
+REQ-FUA-001: The platform SHALL support uploading files in CSV, Excel (.xlsx), JSON, and PDF formats.
+REQ-FUA-002: Text extraction from PDF files SHALL be performed using pdf-parse.
+REQ-FUA-003: Uploaded files SHALL be stored in AWS S3.
+REQ-FUA-004: Parsed data from uploaded files SHALL be loaded into ephemeral MySQL tables per organization (prefixed with upload_).
+REQ-FUA-005: The platform SHALL auto-detect column names, infer data types, and provide sample values on file upload.
+REQ-FUA-006: A file upload progress bar SHALL be displayed, and validation errors (e.g., malformed CSV, encoding issues) SHALL be shown inline.
+REQ-FUA-007: Uploaded files SHALL appear as virtual tables in the schema selector alongside database connections.
+REQ-FUA-008: File sharing with other organization members SHALL be supported.
+REQ-FUA-009: Admins SHALL be able to delete uploaded files with data purge confirmation.
+REQ-FUA-010: The maximum file size for uploads SHALL be 500 MB.
+REQ-FUA-011: The maximum row count for in-memory parsing SHALL be 5 million rows; files exceeding this threshold SHALL be streamed.
+
+3.8. Saved Queries & Templates
+REQ-SQT-001: Users SHALL be able to save any conversation query with a custom title, description, and tags.
+REQ-SQT-002: A query library SHALL be available with search, filter by tag/creator/date, and sort functionalities.
+REQ-SQT-003: The platform SHALL support query templates with parameterizable placeholders (e.g., {{start_date}}).
+REQ-SQT-004: Saved queries SHALL be shareable with specific organization members or broadcast to the entire organization.
+REQ-SQT-005: A query execution history SHALL be maintained, including last run time, row count, duration, and cost.
+
+3.9. Collaboration and Annotation
+REQ-COL-001: Users SHALL be able to add comments to specific dashboards or individual widgets within a dashboard.
+REQ-COL-002: The platform SHALL support annotating specific data points or trends within visualizations.
+REQ-COL-003: Users SHALL be able to mention other users within comments or annotations to notify them of specific insights or questions.
+
+3.10. Embedded Analytics
+REQ-EMB-001: The platform SHALL provide capabilities to embed chat interfaces and specific dashboards into external applications via iFrame, React SDK, and GraphQL API.
+REQ-EMB-002: Embedded components SHALL support secure authentication mechanisms suitable for embedded contexts (e.g., signed URLs, token-based authentication).
+REQ-EMB-003: Embedded components SHALL support white-labeling options, allowing customization of logos, colors, and fonts to match the host application's branding.
+REQ-EMB-004: The GraphQL API SHALL provide granular access to query data, retrieve insights, and manage embedded content programmatically.
+
+4. AI & Machine Learning Specifications
+This section details the technical requirements for the platform's AI and Machine Learning components, focusing on natural language processing, intelligent query generation, and continuous improvement mechanisms.
+
+4.1. Natural Language Processing (NLP) & Query Generation
+AI-NLP-001: The platform SHALL utilize advanced NLP techniques to parse natural language queries, identify entities, intents, and relationships relevant to the underlying data schema and semantic layer.
+AI-NLP-002: The primary NL2SQL engine SHALL be the Claude API (claude-sonnet-4-6), integrated via @anthropic-ai/sdk (version 0.24+).
+AI-NLP-003: A fallback NL2SQL engine SHALL be the Gemini API, integrated via Google Generative AI SDK (latest version), to ensure high availability and resilience.
+AI-NLP-004: The prompt engineering for NL2SQL SHALL dynamically construct prompts including:
+System role instructions for SQL generation.
+Chunked schema metadata (tables, columns, data types, relationships) to optimize LLM context window usage, especially for schemas with >100 tables.
+The last 20 messages of the conversation history to maintain context.
+Admin-defined semantic metrics and dimensions.
+User's current natural language question.
+Specific database dialect instructions (PostgreSQL, MySQL, T-SQL, BigQuery SQL, Snowflake SQL, MongoDB aggregation).
+AI-NLP-005: The platform SHALL implement a robust SQL validation pipeline including:
+Syntax Check: Verification of generated SQL against the target database's syntax rules.
+Safety Check: Prevention of DML/DDL operations (INSERT, UPDATE, DELETE, DROP, TRUNCATE, ALTER).
+Injection Pattern Detection: Identification and mitigation of potential SQL injection vulnerabilities.
+Performance Guardrails: Automatic enforcement of LIMIT clauses and other optimizations to prevent unbounded queries.
+AI-NLP-006: The platform SHALL generate AI-powered narrative summaries (1-3 sentences) for query results, highlighting key trends, anomalies, and actionable insights.
+
+4.2. Agentic Workflows & Autonomous Actions
+AI-AGENT-001: The platform SHALL support multi-step agentic workflows, enabling the AI to break down complex natural language questions into a sequence of sub-queries or tasks.
+AI-AGENT-002: The AI agent SHALL be capable of synthesizing results from multiple sub-queries to form a comprehensive answer or insight.
+AI-AGENT-003: The platform SHALL provide a mechanism for defining and executing conditional actions based on query results (e.g., triggering alerts, generating reports, or updating dashboards based on predefined thresholds).
+AI-AGENT-004: Users SHALL have full visibility and control over agentic workflows, including the ability to review intermediate steps, approve actions, and override decisions.
+
+4.3. Continuous Learning & Context Adaptation
+AI-LEARN-001: The platform SHALL implement a continuous learning feedback loop where user interactions (e.g., thumbs up/down on responses, manual SQL corrections, semantic layer refinements) are captured and used to improve AI performance.
+AI-LEARN-002: User feedback SHALL be systematically used to fine-tune LLM prompts, update the semantic layer definitions, and improve the accuracy of SQL generation and narrative summaries.
+AI-LEARN-003: The platform SHALL track the performance of AI-generated queries and insights over time, identifying areas for improvement through metrics such as query success rate, time-to-insight, and user satisfaction.
+AI-LEARN-004: The semantic layer SHALL be dynamic, adapting to changes in underlying database schemas and business logic through a combination of automated detection and administrator-guided updates.
+
+4.4. Advanced Evaluation and Testing Framework
+AI-EVAL-001: The platform SHALL include a robust AI evaluation framework to ensure the accuracy and reliability of NL2SQL generation and AI insights.
+AI-EVAL-002:Administrators SHALL be able to create and manage evaluation datasets consisting of 
+golden queries (natural language questions paired with their expected SQL and results).
+AI-EVAL-003: The platform SHALL support automated testing against these evaluation datasets whenever LLM prompts, models, or semantic layer definitions are updated.
+AI-EVAL-004: The evaluation framework SHALL track and report key metrics such as SQL generation accuracy, result accuracy, and confidence score calibration.
+
+5. Technical & System Architecture
+This section outlines the high-level technical architecture, key components, and integration points required to build the AI-powered research and analytics platform.
+
+5.1. High-Level Architecture
+The platform SHALL follow a three-tier, microservice-ready monolith architecture, designed for initial deployment as a single service with the capability to be split into independent microservices as the platform scales.
+
+Tier 1 – Frontend (Client Layer):
+Technology: React 19 Single Page Application (SPA) built with TypeScript 5.4+.
+Build Tool: Vite 5.x for fast development and optimized production builds.
+UI Components: shadcn/ui and Tailwind CSS 3.4+ for an accessible and customizable design system.
+State Management: Zustand 4.x for lightweight global state management.
+Server State Management: TanStack Query (React Query) 5.x for data fetching, caching, and invalidation.
+Charts: Recharts 2.x for responsive and composable chart rendering.
+Drag & Drop: react-grid-layout for dashboard widget grid system.
+Deployment: Served from AWS CloudFront CDN for low-latency content delivery.
+Communication: Communicates with the Backend API via HTTPS REST and Server-Sent Events (SSE) for streaming responses.
+Tier 2 – Backend API (Application Layer):
+Technology: Express.js 5.x on Node.js 22 LTS, written in TypeScript 5.4+.
+Containerization: Docker 26+ for reproducible builds using multi-stage Dockerfiles.
+Orchestration: Kubernetes (AWS EKS 1.29+) for pod autoscaling, rolling deployments, and high availability.
+Core Responsibilities: Handles authentication, authorization, conversational query pipeline, AI orchestration (NL2SQL, narrative generation), file processing, and scheduled tasks.
+ORM/Query Builder: Prisma 5.x for type-safe database access, migrations, and multi-database support.
+AI Integration: @anthropic-ai/sdk (0.24+) for Claude API and Google Generative AI SDK (latest) for Gemini API.
+File Handling: Multer and AWS SDK v3 for file uploads and S3 storage.
+Email: Nodemailer and AWS SES for report delivery and notifications.
+Auth: jsonwebtoken and bcryptjs for JWT signing and password hashing.
+Validation: Zod 3.x for runtime schema validation of all API inputs.
+Job Queue: BullMQ 5.x for asynchronous jobs (e.g., report delivery, schema synchronization, alerts).
+Tier 3 – Data Layer (Persistence Layer):
+Primary Database: MySQL 8.0+ for relational data storage (platform metadata, organization-specific data), configured with read replicas for analytics queries and a write-primary for transactional operations.
+Cache/Queue Broker: Redis 7.x in cluster mode with 3 shards and Sentinel for high availability, used for result caching, session store, and BullMQ job queue.
+File Storage: AWS S3 for storing uploaded files, with all data encrypted at rest.
+Secrets Management: AWS Secrets Manager for securely storing API keys, database credentials, and JWT secrets.
+
+5.2. System Workflows
+5.2.1. Conversational Query Workflow (Core Path)
+User Input (Frontend): The React frontend sends a JSON payload { question, conversationId, connectionId } to the backend API endpoint POST /api/conversations/:id/messages.
+Schema Fetch (Backend): The backend loads schema metadata from a Redis cache (TTL 5 min). If a cache miss occurs, the schema is fetched directly from the database and cached.
+Prompt Build (Backend): The backend constructs a comprehensive prompt for the LLM, including:
+System role instructions for SQL generation.
+Chunked schema metadata (if >100 tables) to fit within the LLM context window.
+The last 20 messages of the conversation history to maintain context.
+Admin-defined semantic metrics and dimensions relevant to the query.
+The user's natural language question.
+Specific database dialect instructions for the target database.
+LLM Call (Backend): The constructed prompt is sent to the primary Claude API. If Claude API is unavailable or fails, the request is automatically retried with the Gemini API fallback.
+SQL Generation & Validation (Backend): The LLM generates a SQL query. This query undergoes a rigorous validation pipeline:
+Syntax check against the target database dialect.
+Safety check to prevent DML/DDL operations.
+SQL injection pattern detection.
+Performance guardrails (e.g., LIMIT enforcement).
+Query Execution (Backend): The validated SQL query is executed against the target database. Result streaming is employed for large datasets to prevent memory issues.
+Result Processing & Caching (Backend): Query results are processed, and metadata (row count, execution time, cost estimate, column data types) is extracted. Results are stored in a Redis cache with a 1-hour TTL, using org_id + hash(sql + connection_id) as the cache key.
+AI Insight Generation (Backend): An AI-generated narrative summary (1-3 sentences) is created from the query results, highlighting key trends and anomalies. A confidence score is also generated.
+Response Streaming (Backend to Frontend): The generated SQL, query results, AI narrative summary, and confidence score are streamed back to the React frontend via Server-Sent Events (SSE).
+UI Rendering (Frontend): The frontend displays the streaming response, including the generated SQL (with copy button and expandable view), automatically suggested optimal chart types, and the AI narrative summary. Users can then interact with the data, override visualizations, or provide feedback.
+
+5.2.2. Data Ingestion Pipeline (File Upload)
+File Upload (Frontend): User uploads a file (CSV, XLSX, JSON, PDF) via the React UI. A progress bar indicates upload status.
+File Storage (Backend): The uploaded file is temporarily stored in AWS S3.
+Parsing & Schema Inference (Backend): The backend parses the file content. For PDFs, text extraction is performed. Column names, inferred data types, and sample values are automatically detected.
+Ephemeral Table Creation (Backend): The parsed data is loaded into an ephemeral MySQL table, prefixed with upload_, within the organization's database schema.
+Schema Update & Caching (Backend): The new ephemeral table is added to the organization's schema metadata. The Redis schema cache is updated, and the manual refresh option is available to Org Admins.
+Virtual Table Display (Frontend): The uploaded file appears as a virtual table in the schema selector within the UI, allowing users to query it like any other connected database table.
+File Management: Admins can delete uploaded files, triggering a data purge from S3 and the ephemeral MySQL table.
+
+5.3. API Gateway Configuration
+ARC-API-001: The platform SHALL utilize an API Gateway (e.g., AWS API Gateway or an Ingress Controller in Kubernetes) to manage all incoming API requests.
+ARC-API-002: The API Gateway SHALL enforce rate limiting, request validation, and provide a single entry point for all client applications.
+ARC-API-003: All API endpoints SHALL be secured with JWT validation and RBAC enforcement at the gateway level where applicable.
+ARC-API-004: The API Gateway SHALL support Server-Sent Events (SSE) for streaming query responses.
+ARC-API-005: An OpenAPI 3.1 specification SHALL be auto-generated from backend route decorators, with Swagger UI available at /api/docs in development environments only.
+
+5.4. Database Structures
+ARC-DB-001: The primary MySQL database SHALL store platform metadata, including:
+User accounts and profiles.
+Organization details and configurations.
+Connection details for external databases (encrypted).
+Semantic layer definitions (metrics, dimensions, relationships).
+Conversation history and saved queries.
+Dashboard layouts and widget configurations.
+Audit logs.
+ARC-DB-002: The database schema SHALL be managed using Prisma migrations to ensure version control and consistency across environments.
+ARC-DB-003: Ephemeral MySQL tables for file uploads SHALL be dynamically created and managed, with appropriate indexing for query performance and automatic cleanup mechanisms.
+
+6. Non-Functional Requirements (NFRs)
+This section defines the critical non-functional attributes of the platform, ensuring it meets enterprise-grade standards for performance, scalability, availability, security, and compliance.
+
+6.1. Performance
+NFR-PERF-001: Query response time (p95, AI + DB execution combined) SHALL be less than 5 seconds.
+NFR-PERF-002: Claude API response time (p95, SQL generation only) SHALL be less than 3 seconds.
+NFR-PERF-003: Page load time (p95, for React SPA, CDN-served) SHALL be less than 2 seconds.
+NFR-PERF-004: Dashboard widget render time SHALL be less than 500 ms per widget (cache-hit path).
+NFR-PERF-005: Redis cache hit rate SHALL be greater than 60% for typical workloads.
+NFR-PERF-006: The platform SHALL support 1,000+ concurrent users within a single organization through horizontal scaling.
+
+6.2. Scalability
+NFR-SCAL-001: The API layer SHALL implement horizontal auto-scaling via Kubernetes HPA, adding pods when CPU utilization exceeds 70%, with a maximum of 20 pods.
+NFR-SCAL-002: The primary database (MySQL 8) SHALL utilize read replicas for analytics queries and a write-primary for transactional operations to ensure scalability.
+NFR-SCAL-003: Redis SHALL operate in cluster mode with 3 shards and Sentinel for high availability, employing an allkeys-lru eviction policy.
+NFR-SCAL-004: The platform SHALL be designed to support capacity targets of 10,000 organizations, 100,000 users, and over 1,000,000 queries per month.
+
+6.3. Availability & Reliability
+NFR-AVAIL-001: The platform SHALL maintain an uptime SLA of 99.9% (less than 8.76 hours downtime per year), enforced via AWS ALB health checks and Kubernetes pod restarts.
+NFR-AVAIL-002: The platform SHALL implement graceful degradation: if the Claude API is unavailable, it SHALL automatically retry with the Gemini fallback. A user-friendly error message SHALL be surfaced if both fail.
+NFR-AVAIL-003: A circuit breaker pattern SHALL be applied to all external API calls (Claude, Gemini, email, Slack) to prevent cascading failures.
+NFR-AVAIL-004: Automated failover for database connections SHALL be implemented, including dead connection detection and pool refresh.
+NFR-AVAIL-005: A blue/green deployment strategy SHALL be utilized, with automated rollback on error rate spikes to minimize downtime during releases.
+
+6.4. Security & Compliance
+NFR-SEC-001: All data at rest SHALL be encrypted (e.g., AWS S3, RDS encryption).
+NFR-SEC-002: All data in transit SHALL be encrypted using TLS 1.3.
+NFR-SEC-003: The platform SHALL comply with GDPR and SOC 2 requirements.
+NFR-SEC-004: A Web Application Firewall (WAF) SHALL be implemented to protect against common web exploits.
+NFR-SEC-005: The platform SHALL implement Row-Level Security (RLS) and Column-Level Security (CLS) enforced at query time, ensuring users only access data they are explicitly authorized for.
+NFR-SEC-006: Comprehensive audit logs SHALL be maintained, tracking every query executed, the user who executed it, the data accessed, the AI model version used, and any administrative actions. Logs SHALL be immutable and retained for a minimum of 7 years.
+NFR-SEC-007: The platform SHALL support secure credential management for database connections, utilizing AWS Secrets Manager.
+
+6.5. Maintainability
+NFR-MAINT-001: The codebase SHALL follow a monorepo structure: /apps/api (Node.js/Express), /apps/web (React), /packages/shared (types, utilities).
+NFR-MAINT-002: TypeScript strict mode SHALL be enforced throughout the codebase, with no any escape hatches in production code.
+NFR-MAINT-003: ESLint and Prettier SHALL be enforced in CI/CD pipelines, with Husky pre-commit hooks for code quality.
+NFR-MAINT-004: Unit test coverage SHALL be ≥ 70% on critical paths (authentication, query pipeline, multi-tenancy filters).
+NFR-MAINT-005: Integration tests SHALL cover all API endpoints, and Playwright E2E tests SHALL cover core user journeys.
+NFR-MAINT-006: Centralized structured logging (Winston to CloudWatch Logs) SHALL be implemented, with correlation IDs on all requests for distributed tracing.
+NFR-MAINT-007: Distributed tracing via AWS X-Ray SHALL be used for performance monitoring and debugging.
+NFR-MAINT-008: Sentry SHALL be integrated for error tracking with source map support.
+
+6.6. White-labeling and Custom Branding
+NFR-BRAND-001: The platform SHALL provide comprehensive white-labeling capabilities, allowing Org Admins to customize:
+Platform logos (light and dark mode).
+Primary and secondary color palettes.
+Font families.
+Email templates for notifications and alerts.
+NFR-BRAND-002: The platform SHALL support the use of custom domains for each organization.
+NFR-BRAND-003: All embedded components (iFrame, React SDK) SHALL inherit the organization's custom branding.
+
+7. Technology Stack
+The platform is built exclusively with Node.js (backend) and React (frontend), both in TypeScript. The AI layer uses Claude API as the primary SQL generation engine with Gemini as fallback.
+
+

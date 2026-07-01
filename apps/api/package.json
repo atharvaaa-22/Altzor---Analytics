@@ -1,0 +1,17 @@
+{
+  "name": "@platform/api",
+  "version": "1.0.0",
+  "private": true,
+  "prisma": {
+    "seed": "ts-node --esm prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^26.1.0",
+    "bcryptjs": "^3.0.3",
+    "prisma": "^5.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

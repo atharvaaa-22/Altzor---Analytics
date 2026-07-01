@@ -1,0 +1,514 @@
+// ─── Generator & Datasource ────────────────────────────────────────
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ─────────────────────────────────────────────────────────
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  ANALYST
+  VIEWER
+}
+
+enum ConnectionType {
+  POSTGRESQL
+  MYSQL
+  MSSQL
+  SNOWFLAKE
+  BIGQUERY
+  MONGODB
+}
+
+enum WidgetType {
+  CHART
+  KPI_CARD
+  DATA_TABLE
+  TEXT_MARKDOWN
+}
+
+enum ChartType {
+  BAR
+  LINE
+  PIE
+  SCATTER
+  HEATMAP
+  FUNNEL
+  TABLE
+  KPI
+}
+
+enum FeedbackType {
+  THUMBS_UP
+  THUMBS_DOWN
+}
+
+enum FileFormat {
+  CSV
+  XLSX
+  JSON
+  PDF
+}
+
+enum QueryApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── ORGANIZATION ──────────────────────────────────────────────────
+/// ARC-DB-001: Organization details and configurations.
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoLight   String?  @db.Text     // NFR-BRAND-001
+  logoDark    String?  @db.Text
+  primaryColor   String?  @db.VarChar(7)
+  secondaryColor String?  @db.VarChar(7)
+  fontFamily     String?  @db.VarChar(100)
+  customDomain   String?  @unique    // NFR-BRAND-002
+  queryTimeoutMs Int      @default(30000)  // REQ-QER-001
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users           User[]
+  connections     DatabaseConnection[]
+  conversations   Conversation[]
+  dashboards      Dashboard[]
+  savedQueries    SavedQuery[]
+  uploadedFiles   UploadedFile[]
+  semanticMetrics SemanticMetric[]
+  semanticDimensions SemanticDimension[]
+  auditLogs       AuditLog[]
+  emailTemplates  EmailTemplate[]
+
+  @@map("organizations")
+}
+
+// ─── USER ──────────────────────────────────────────────────────────
+/// ARC-DB-001: User accounts and profiles.
+/// REQ-AUTH-001–008: JWT auth, RBAC, bcrypt, password rules.
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String    @db.VarChar(255)  // REQ-AUTH-003: bcrypt cost ≥12
+  firstName      String    @db.VarChar(100)
+  lastName       String    @db.VarChar(100)
+  role           UserRole  @default(ANALYST)  // REQ-AUTH-008
+  avatarUrl      String?   @db.Text
+  isActive       Boolean   @default(true)
+  failedAttempts Int       @default(0)        // REQ-AUTH-007
+  lockedUntil    DateTime?                    // REQ-AUTH-007: 15 min lockout
+  lastActiveAt   DateTime?                    // REQ-AUTH-005: 30 min timeout
+  organizationId String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  refreshTokens   RefreshToken[]
+  conversations   Conversation[]
+  messages        Message[]
+  dashboards      Dashboard[]
+  savedQueries    SavedQuery[]
+  uploadedFiles   UploadedFile[]
+  feedbacks       QueryFeedback[]
+  comments        Comment[]
+  annotations     Annotation[]
+  auditLogs       AuditLog[]
+  sharedDashboards DashboardShare[]
+  sharedQueries   QueryShare[]
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+// ─── REFRESH TOKENS ────────────────────────────────────────────────
+/// REQ-AUTH-001: 7-day refresh token rotation, httpOnly cookies.
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @db.VarChar(500)
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ─── DATABASE CONNECTIONS ──────────────────────────────────────────
+/// ARC-DB-001: Connection details for external databases (encrypted).
+/// REQ-DB-001: PostgreSQL, MySQL, MSSQL, Snowflake, BigQuery, MongoDB.
+/// REQ-DB-002: AES-256-GCM encrypted credentials.
+model DatabaseConnection {
+  id              String         @id @default(cuid())
+  name            String
+  type            ConnectionType
+  host            String?        @db.VarChar(500)
+  port            Int?
+  database        String?        @db.VarChar(255)
+  username        String?        @db.VarChar(255)
+  encryptedPassword String?      @db.Text         // REQ-DB-002: AES-256-GCM
+  encryptionIV    String?        @db.VarChar(64)
+  encryptionTag   String?        @db.VarChar(64)
+  connectionString String?       @db.Text         // For Snowflake/BigQuery
+  sslEnabled      Boolean        @default(true)
+  isActive        Boolean        @default(true)
+  lastTestedAt    DateTime?
+  organizationId  String
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  messages      Message[]
+  savedQueries  SavedQuery[]
+
+  @@index([organizationId])
+  @@map("database_connections")
+}
+
+// ─── CONVERSATIONS ─────────────────────────────────────────────────
+/// ARC-DB-001: Conversation history.
+/// REQ-CQI-001–004: Multi-turn chat, context retention.
+model Conversation {
+  id              String   @id @default(cuid())
+  title           String?  @db.VarChar(255)  // REQ-CQI-003: auto-generated
+  userId          String
+  organizationId  String
+  connectionId    String?
+  isArchived      Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection   DatabaseConnection? @relation(fields: [connectionId], references: [id])
+  messages     Message[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@map("conversations")
+}
+
+// ─── MESSAGES ──────────────────────────────────────────────────────
+/// REQ-CQI-002: Last 20 messages sent to LLM for context.
+model Message {
+  id              String    @id @default(cuid())
+  conversationId  String
+  userId          String?
+  role            String    @db.VarChar(20)   // 'user' | 'assistant' | 'system'
+  content         String    @db.LongText      // Natural language question
+  generatedSql    String?   @db.LongText      // REQ-CQI-008: Show SQL to user
+  queryResults    Json?                       // Cached result snapshot
+  resultMetadata  Json?                       // REQ-QER-003: row_count, exec_time, etc.
+  chartType       ChartType?                 // REQ-DVI-001: suggested chart
+  chartOverride   ChartType?                 // REQ-DVI-003: user override
+  narrativeSummary String?  @db.Text          // REQ-DVI-004: 1–3 sentence summary
+  confidenceScore Float?                     // REQ-DVI-006: LLM self-reported
+  lineage         Json?                       // REQ-DVI-005: source tables, columns
+  connectionId    String?
+  aiModel         String?   @db.VarChar(50)   // gemini-2.5-flash
+  executionTimeMs Int?
+  rowCount        Int?
+  costEstimate    Float?
+  createdAt       DateTime  @default(now())
+
+  conversation Conversation       @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?              @relation(fields: [userId], references: [id])
+  connection   DatabaseConnection? @relation(fields: [connectionId], references: [id])
+  feedback     QueryFeedback?
+
+  @@index([conversationId])
+  @@index([userId])
+  @@map("messages")
+}
+
+// ─── QUERY FEEDBACK ────────────────────────────────────────────────
+/// REQ-CQI-010: Thumbs up/down, failures logged for prompt tuning.
+model QueryFeedback {
+  id        String       @id @default(cuid())
+  messageId String       @unique
+  userId    String
+  type      FeedbackType
+  comment   String?      @db.Text
+  createdAt DateTime     @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("query_feedbacks")
+}
+
+// ─── DASHBOARDS ────────────────────────────────────────────────────
+/// ARC-DB-001: Dashboard layouts and widget configurations.
+/// REQ-DB-007–015: Drag-and-drop grid, widgets, cross-filtering.
+model Dashboard {
+  id             String   @id @default(cuid())
+  title          String   @db.VarChar(255)
+  description    String?  @db.Text
+  userId         String
+  organizationId String
+  layout         Json?                       // react-grid-layout state
+  filters        Json?                       // REQ-DB-010: dashboard-level filters
+  isPublic       Boolean  @default(false)    // REQ-DB-012: public link
+  publicSlug     String?  @unique
+  isArchived     Boolean  @default(false)    // REQ-DB-013
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  widgets      DashboardWidget[]
+  shares       DashboardShare[]
+  comments     Comment[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("dashboards")
+}
+
+// ─── DASHBOARD WIDGETS ─────────────────────────────────────────────
+/// REQ-DB-008: Charts, KPI cards, data tables, text/markdown.
+model DashboardWidget {
+  id            String     @id @default(cuid())
+  dashboardId   String
+  type          WidgetType
+  title         String?    @db.VarChar(255)
+  savedQueryId  String?                     // REQ-DB-009: from saved query
+  naturalQuery  String?    @db.Text         // REQ-DB-009: or new NL question
+  chartType     ChartType?
+  chartConfig   Json?                       // axis labels, colors, etc.
+  gridPosition  Json                        // { x, y, w, h } for react-grid-layout
+  markdownContent String?  @db.LongText     // REQ-DB-008: text/markdown widget
+  lastRefreshedAt DateTime?                 // REQ-DB-011
+  cachedData    Json?                       // Widget-level cached result
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  dashboard  Dashboard   @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  savedQuery SavedQuery? @relation(fields: [savedQueryId], references: [id])
+
+  @@index([dashboardId])
+  @@map("dashboard_widgets")
+}
+
+// ─── DASHBOARD SHARES ──────────────────────────────────────────────
+/// REQ-DB-012: Shareable via view-only links.
+model DashboardShare {
+  id          String   @id @default(cuid())
+  dashboardId String
+  userId      String
+  canEdit     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([dashboardId, userId])
+  @@map("dashboard_shares")
+}
+
+// ─── SAVED QUERIES ─────────────────────────────────────────────────
+/// REQ-SQT-001–005: Save, tag, template, share queries.
+model SavedQuery {
+  id             String  @id @default(cuid())
+  title          String  @db.VarChar(255)        // REQ-SQT-001
+  description    String? @db.Text
+  naturalQuery   String  @db.Text                // Original NL question
+  generatedSql   String  @db.LongText            // Generated SQL
+  tags           Json?                            // REQ-SQT-001: string[]
+  isTemplate     Boolean @default(false)          // REQ-SQT-003
+  templateParams Json?                            // REQ-SQT-003: {{start_date}} etc.
+  chartType      ChartType?
+  chartConfig    Json?
+  userId         String
+  organizationId String
+  connectionId   String?
+  lastRunAt      DateTime?                        // REQ-SQT-005
+  lastRunRowCount Int?
+  lastRunDurationMs Int?
+  lastRunCost    Float?
+  isBroadcast    Boolean  @default(false)         // REQ-SQT-004: org-wide
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection   DatabaseConnection? @relation(fields: [connectionId], references: [id])
+  widgets      DashboardWidget[]
+  shares       QueryShare[]
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("saved_queries")
+}
+
+// ─── QUERY SHARES ──────────────────────────────────────────────────
+/// REQ-SQT-004: Share with specific org members.
+model QueryShare {
+  id           String   @id @default(cuid())
+  savedQueryId String
+  userId       String
+  createdAt    DateTime @default(now())
+
+  savedQuery SavedQuery @relation(fields: [savedQueryId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([savedQueryId, userId])
+  @@map("query_shares")
+}
+
+// ─── SEMANTIC LAYER ────────────────────────────────────────────────
+/// ARC-DB-001: Semantic layer definitions (metrics, dimensions, relationships).
+model SemanticMetric {
+  id             String   @id @default(cuid())
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  formula        String   @db.Text           // SQL expression
+  dataType       String   @db.VarChar(50)    // number, currency, percentage
+  formatPattern  String?  @db.VarChar(50)    // e.g., "$#,##0.00"
+  version        Int      @default(1)        // Versioned & immutable
+  isActive       Boolean  @default(true)
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("semantic_metrics")
+}
+
+model SemanticDimension {
+  id             String   @id @default(cuid())
+  name           String   @db.VarChar(255)
+  description    String?  @db.Text
+  sourceTable    String   @db.VarChar(255)
+  sourceColumn   String   @db.VarChar(255)
+  dataType       String   @db.VarChar(50)
+  synonyms       Json?                       // Alternative names for NLP
+  version        Int      @default(1)
+  isActive       Boolean  @default(true)
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("semantic_dimensions")
+}
+
+// ─── FILE UPLOADS ──────────────────────────────────────────────────
+/// REQ-FUA-001–011: File upload, S3 storage, ephemeral tables.
+model UploadedFile {
+  id             String     @id @default(cuid())
+  originalName   String     @db.VarChar(500)
+  format         FileFormat
+  sizeBytes      BigInt
+  s3Key          String     @db.VarChar(500)   // REQ-FUA-003: S3 path
+  s3Bucket       String     @db.VarChar(255)
+  ephemeralTable String?    @db.VarChar(255)   // REQ-FUA-004: upload_ prefix
+  columnSchema   Json?                        // REQ-FUA-005: auto-detected
+  rowCount       Int?
+  userId         String
+  organizationId String
+  isDeleted      Boolean    @default(false)   // REQ-FUA-009: soft delete
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("uploaded_files")
+}
+
+// ─── COMMENTS ──────────────────────────────────────────────────────
+/// REQ-COL-001–003: Comments on dashboards/widgets, mentions.
+model Comment {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  userId      String
+  dashboardId String?
+  widgetId    String?
+  parentId    String?                        // Thread replies
+  mentions    Json?                          // REQ-COL-003: mentioned user IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dashboard Dashboard? @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
+  parent    Comment?   @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[]  @relation("CommentReplies")
+
+  @@index([dashboardId])
+  @@index([userId])
+  @@map("comments")
+}
+
+// ─── ANNOTATIONS ───────────────────────────────────────────────────
+/// REQ-COL-002: Annotate specific data points in visualizations.
+model Annotation {
+  id          String   @id @default(cuid())
+  content     String   @db.Text
+  userId      String
+  widgetId    String
+  dataPointRef Json                          // { x, y, series, value }
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("annotations")
+}
+
+// ─── AUDIT LOGS ────────────────────────────────────────────────────
+/// NFR-SEC-006: Immutable audit trail, 7-year retention.
+model AuditLog {
+  id             String   @id @default(cuid())
+  action         String   @db.VarChar(100)   // query_executed, user_created, etc.
+  userId         String?
+  organizationId String
+  resourceType   String?  @db.VarChar(100)   // conversation, dashboard, etc.
+  resourceId     String?
+  details        Json?                       // Query text, model version, etc.
+  ipAddress      String?  @db.VarChar(45)
+  userAgent      String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  user         User?        @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([userId])
+  @@index([action])
+  @@map("audit_logs")
+}
+
+// ─── EMAIL TEMPLATES ───────────────────────────────────────────────
+/// NFR-BRAND-001: Customizable email templates.
+model EmailTemplate {
+  id             String   @id @default(cuid())
+  name           String   @db.VarChar(100)
+  subject        String   @db.VarChar(500)
+  htmlBody       String   @db.LongText
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@map("email_templates")
+}
