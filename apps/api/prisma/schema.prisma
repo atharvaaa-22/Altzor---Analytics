@@ -4,61 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
-}
-
-// ─── ENUMS ─────────────────────────────────────────────────────────
-enum UserRole {
-  SUPER_ADMIN
-  ORG_ADMIN
-  ANALYST
-  VIEWER
-}
-
-enum ConnectionType {
-  POSTGRESQL
-  MYSQL
-  MSSQL
-  SNOWFLAKE
-  BIGQUERY
-  MONGODB
-}
-
-enum WidgetType {
-  CHART
-  KPI_CARD
-  DATA_TABLE
-  TEXT_MARKDOWN
-}
-
-enum ChartType {
-  BAR
-  LINE
-  PIE
-  SCATTER
-  HEATMAP
-  FUNNEL
-  TABLE
-  KPI
-}
-
-enum FeedbackType {
-  THUMBS_UP
-  THUMBS_DOWN
-}
-
-enum FileFormat {
-  CSV
-  XLSX
-  JSON
-  PDF
-}
-
-enum QueryApprovalStatus {
-  PENDING
-  APPROVED
-  REJECTED
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // ─── ORGANIZATION ──────────────────────────────────────────────────
@@ -67,11 +14,11 @@ model Organization {
   id          String   @id @default(cuid())
   name        String
   slug        String   @unique
-  logoLight   String?  @db.Text     // NFR-BRAND-001
-  logoDark    String?  @db.Text
-  primaryColor   String?  @db.VarChar(7)
-  secondaryColor String?  @db.VarChar(7)
-  fontFamily     String?  @db.VarChar(100)
+  logoLight   String?  
+  logoDark    String?  
+  primaryColor   String?  
+  secondaryColor String?  
+  fontFamily     String?  
   customDomain   String?  @unique    // NFR-BRAND-002
   queryTimeoutMs Int      @default(30000)  // REQ-QER-001
   createdAt   DateTime @default(now())
@@ -97,11 +44,11 @@ model Organization {
 model User {
   id             String    @id @default(cuid())
   email          String    @unique
-  passwordHash   String    @db.VarChar(255)  // REQ-AUTH-003: bcrypt cost ≥12
-  firstName      String    @db.VarChar(100)
-  lastName       String    @db.VarChar(100)
-  role           UserRole  @default(ANALYST)  // REQ-AUTH-008
-  avatarUrl      String?   @db.Text
+  passwordHash   String    // REQ-AUTH-003: bcrypt cost >=12
+  firstName      String    
+  lastName       String    
+  role           String    @default("ANALYST")  // REQ-AUTH-008
+  avatarUrl      String?   
   isActive       Boolean   @default(true)
   failedAttempts Int       @default(0)        // REQ-AUTH-007
   lockedUntil    DateTime?                    // REQ-AUTH-007: 15 min lockout
@@ -133,7 +80,7 @@ model User {
 /// REQ-AUTH-001: 7-day refresh token rotation, httpOnly cookies.
 model RefreshToken {
   id        String   @id @default(cuid())
-  token     String   @unique @db.VarChar(500)
+  token     String   @unique 
   userId    String
   expiresAt DateTime
   revokedAt DateTime?
@@ -153,15 +100,15 @@ model RefreshToken {
 model DatabaseConnection {
   id              String         @id @default(cuid())
   name            String
-  type            ConnectionType
-  host            String?        @db.VarChar(500)
+  type            String
+  host            String?        
   port            Int?
-  database        String?        @db.VarChar(255)
-  username        String?        @db.VarChar(255)
-  encryptedPassword String?      @db.Text         // REQ-DB-002: AES-256-GCM
-  encryptionIV    String?        @db.VarChar(64)
-  encryptionTag   String?        @db.VarChar(64)
-  connectionString String?       @db.Text         // For Snowflake/BigQuery
+  database        String?        
+  username        String?        
+  encryptedPassword String?      // REQ-DB-002: AES-256-GCM
+  encryptionIV    String?        
+  encryptionTag   String?        
+  connectionString String?       // For Snowflake/BigQuery
   sslEnabled      Boolean        @default(true)
   isActive        Boolean        @default(true)
   lastTestedAt    DateTime?
@@ -183,7 +130,7 @@ model DatabaseConnection {
 /// REQ-CQI-001–004: Multi-turn chat, context retention.
 model Conversation {
   id              String   @id @default(cuid())
-  title           String?  @db.VarChar(255)  // REQ-CQI-003: auto-generated
+  title           String?  // REQ-CQI-003: auto-generated
   userId          String
   organizationId  String
   connectionId    String?
@@ -207,18 +154,18 @@ model Message {
   id              String    @id @default(cuid())
   conversationId  String
   userId          String?
-  role            String    @db.VarChar(20)   // 'user' | 'assistant' | 'system'
-  content         String    @db.LongText      // Natural language question
-  generatedSql    String?   @db.LongText      // REQ-CQI-008: Show SQL to user
-  queryResults    Json?                       // Cached result snapshot
-  resultMetadata  Json?                       // REQ-QER-003: row_count, exec_time, etc.
-  chartType       ChartType?                 // REQ-DVI-001: suggested chart
-  chartOverride   ChartType?                 // REQ-DVI-003: user override
-  narrativeSummary String?  @db.Text          // REQ-DVI-004: 1–3 sentence summary
-  confidenceScore Float?                     // REQ-DVI-006: LLM self-reported
-  lineage         Json?                       // REQ-DVI-005: source tables, columns
+  role            String    // 'user' | 'assistant' | 'system'
+  content         String    // Natural language question
+  generatedSql    String?   // REQ-CQI-008: Show SQL to user
+  queryResults    String?   // Cached result snapshot
+  resultMetadata  String?   // REQ-QER-003: row_count, exec_time, etc.
+  chartType       String?   // REQ-DVI-001: suggested chart
+  chartOverride   String?   // REQ-DVI-003: user override
+  narrativeSummary String?  // REQ-DVI-004: 1–3 sentence summary
+  confidenceScore Float?    // REQ-DVI-006: LLM self-reported
+  lineage         String?   // REQ-DVI-005: source tables, columns
   connectionId    String?
-  aiModel         String?   @db.VarChar(50)   // gemini-2.5-flash
+  aiModel         String?   // gemini-2.5-flash
   executionTimeMs Int?
   rowCount        Int?
   costEstimate    Float?
@@ -240,8 +187,8 @@ model QueryFeedback {
   id        String       @id @default(cuid())
   messageId String       @unique
   userId    String
-  type      FeedbackType
-  comment   String?      @db.Text
+  type      String
+  comment   String?      
   createdAt DateTime     @default(now())
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
@@ -255,12 +202,12 @@ model QueryFeedback {
 /// REQ-DB-007–015: Drag-and-drop grid, widgets, cross-filtering.
 model Dashboard {
   id             String   @id @default(cuid())
-  title          String   @db.VarChar(255)
-  description    String?  @db.Text
+  title          String   
+  description    String?  
   userId         String
   organizationId String
-  layout         Json?                       // react-grid-layout state
-  filters        Json?                       // REQ-DB-010: dashboard-level filters
+  layout         String?  // react-grid-layout state
+  filters        String?  // REQ-DB-010: dashboard-level filters
   isPublic       Boolean  @default(false)    // REQ-DB-012: public link
   publicSlug     String?  @unique
   isArchived     Boolean  @default(false)    // REQ-DB-013
@@ -283,16 +230,16 @@ model Dashboard {
 model DashboardWidget {
   id            String     @id @default(cuid())
   dashboardId   String
-  type          WidgetType
-  title         String?    @db.VarChar(255)
-  savedQueryId  String?                     // REQ-DB-009: from saved query
-  naturalQuery  String?    @db.Text         // REQ-DB-009: or new NL question
-  chartType     ChartType?
-  chartConfig   Json?                       // axis labels, colors, etc.
-  gridPosition  Json                        // { x, y, w, h } for react-grid-layout
-  markdownContent String?  @db.LongText     // REQ-DB-008: text/markdown widget
-  lastRefreshedAt DateTime?                 // REQ-DB-011
-  cachedData    Json?                       // Widget-level cached result
+  type          String
+  title         String?    
+  savedQueryId  String?    // REQ-DB-009: from saved query
+  naturalQuery  String?    // REQ-DB-009: or new NL question
+  chartType     String?
+  chartConfig   String?    // axis labels, colors, etc.
+  gridPosition  String     // { x, y, w, h } for react-grid-layout
+  markdownContent String?  // REQ-DB-008: text/markdown widget
+  lastRefreshedAt DateTime?// REQ-DB-011
+  cachedData    String?    // Widget-level cached result
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -323,15 +270,15 @@ model DashboardShare {
 /// REQ-SQT-001–005: Save, tag, template, share queries.
 model SavedQuery {
   id             String  @id @default(cuid())
-  title          String  @db.VarChar(255)        // REQ-SQT-001
-  description    String? @db.Text
-  naturalQuery   String  @db.Text                // Original NL question
-  generatedSql   String  @db.LongText            // Generated SQL
-  tags           Json?                            // REQ-SQT-001: string[]
+  title          String  // REQ-SQT-001
+  description    String? 
+  naturalQuery   String  // Original NL question
+  generatedSql   String  // Generated SQL
+  tags           String? // REQ-SQT-001: string[]
   isTemplate     Boolean @default(false)          // REQ-SQT-003
-  templateParams Json?                            // REQ-SQT-003: {{start_date}} etc.
-  chartType      ChartType?
-  chartConfig    Json?
+  templateParams String? // REQ-SQT-003: {{start_date}} etc.
+  chartType      String?
+  chartConfig    String?
   userId         String
   organizationId String
   connectionId   String?
@@ -373,11 +320,11 @@ model QueryShare {
 /// ARC-DB-001: Semantic layer definitions (metrics, dimensions, relationships).
 model SemanticMetric {
   id             String   @id @default(cuid())
-  name           String   @db.VarChar(255)
-  description    String?  @db.Text
-  formula        String   @db.Text           // SQL expression
-  dataType       String   @db.VarChar(50)    // number, currency, percentage
-  formatPattern  String?  @db.VarChar(50)    // e.g., "$#,##0.00"
+  name           String   
+  description    String?  
+  formula        String   // SQL expression
+  dataType       String   // number, currency, percentage
+  formatPattern  String?  // e.g., "$#,##0.00"
   version        Int      @default(1)        // Versioned & immutable
   isActive       Boolean  @default(true)
   organizationId String
@@ -392,12 +339,12 @@ model SemanticMetric {
 
 model SemanticDimension {
   id             String   @id @default(cuid())
-  name           String   @db.VarChar(255)
-  description    String?  @db.Text
-  sourceTable    String   @db.VarChar(255)
-  sourceColumn   String   @db.VarChar(255)
-  dataType       String   @db.VarChar(50)
-  synonyms       Json?                       // Alternative names for NLP
+  name           String   
+  description    String?  
+  sourceTable    String   
+  sourceColumn   String   
+  dataType       String   
+  synonyms       String?  // Alternative names for NLP
   version        Int      @default(1)
   isActive       Boolean  @default(true)
   organizationId String
@@ -414,13 +361,13 @@ model SemanticDimension {
 /// REQ-FUA-001–011: File upload, S3 storage, ephemeral tables.
 model UploadedFile {
   id             String     @id @default(cuid())
-  originalName   String     @db.VarChar(500)
-  format         FileFormat
+  originalName   String     
+  format         String
   sizeBytes      BigInt
-  s3Key          String     @db.VarChar(500)   // REQ-FUA-003: S3 path
-  s3Bucket       String     @db.VarChar(255)
-  ephemeralTable String?    @db.VarChar(255)   // REQ-FUA-004: upload_ prefix
-  columnSchema   Json?                        // REQ-FUA-005: auto-detected
+  s3Key          String     // REQ-FUA-003: S3 path
+  s3Bucket       String     
+  ephemeralTable String?    // REQ-FUA-004: upload_ prefix
+  columnSchema   String?    // REQ-FUA-005: auto-detected
   rowCount       Int?
   userId         String
   organizationId String
@@ -439,12 +386,12 @@ model UploadedFile {
 /// REQ-COL-001–003: Comments on dashboards/widgets, mentions.
 model Comment {
   id          String   @id @default(cuid())
-  content     String   @db.Text
+  content     String   
   userId      String
   dashboardId String?
   widgetId    String?
-  parentId    String?                        // Thread replies
-  mentions    Json?                          // REQ-COL-003: mentioned user IDs
+  parentId    String?  // Thread replies
+  mentions    String?  // REQ-COL-003: mentioned user IDs
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -462,10 +409,10 @@ model Comment {
 /// REQ-COL-002: Annotate specific data points in visualizations.
 model Annotation {
   id          String   @id @default(cuid())
-  content     String   @db.Text
+  content     String   
   userId      String
   widgetId    String
-  dataPointRef Json                          // { x, y, series, value }
+  dataPointRef String   // { x, y, series, value }
   createdAt    DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -477,14 +424,14 @@ model Annotation {
 /// NFR-SEC-006: Immutable audit trail, 7-year retention.
 model AuditLog {
   id             String   @id @default(cuid())
-  action         String   @db.VarChar(100)   // query_executed, user_created, etc.
+  action         String   // query_executed, user_created, etc.
   userId         String?
   organizationId String
-  resourceType   String?  @db.VarChar(100)   // conversation, dashboard, etc.
+  resourceType   String?  // conversation, dashboard, etc.
   resourceId     String?
-  details        Json?                       // Query text, model version, etc.
-  ipAddress      String?  @db.VarChar(45)
-  userAgent      String?  @db.Text
+  details        String?  // Query text, model version, etc.
+  ipAddress      String?  
+  userAgent      String?  
   createdAt      DateTime @default(now())
 
   user         User?        @relation(fields: [userId], references: [id])
@@ -500,9 +447,9 @@ model AuditLog {
 /// NFR-BRAND-001: Customizable email templates.
 model EmailTemplate {
   id             String   @id @default(cuid())
-  name           String   @db.VarChar(100)
-  subject        String   @db.VarChar(500)
-  htmlBody       String   @db.LongText
+  name           String   
+  subject        String   
+  htmlBody       String   
   organizationId String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

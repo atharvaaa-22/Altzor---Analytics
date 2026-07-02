@@ -1,10 +1,8 @@
 /**
  * seed.ts — Database seeder for development.
- * 
- * Creates a default organization, super admin, and sample data.
  */
 
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -32,7 +30,7 @@ async function main(): Promise<void> {
       passwordHash,
       firstName: 'Super',
       lastName: 'Admin',
-      role: UserRole.SUPER_ADMIN,
+      role: 'SUPER_ADMIN',
       organizationId: org.id,
     },
   });
@@ -47,7 +45,7 @@ async function main(): Promise<void> {
       passwordHash: analystHash,
       firstName: 'Jane',
       lastName: 'Analyst',
-      role: UserRole.ANALYST,
+      role: 'ANALYST',
       organizationId: org.id,
     },
   });
