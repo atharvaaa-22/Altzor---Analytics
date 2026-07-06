@@ -1,9 +1,9 @@
 import { X, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUploadStore } from '../stores/uploadStore';
-import { clsx } from 'clsx';
+import type { JSX } from 'react';
 
-export function UploadQueue() {
+export function UploadQueue(): JSX.Element | null {
   const { queue, clearCompleted, removeTask } = useUploadStore();
 
   if (queue.length === 0) return null;
@@ -17,7 +17,7 @@ export function UploadQueue() {
     >
       <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-950/50">
         <h3 className="text-sm font-semibold text-white">Uploads ({queue.length})</h3>
-        <button 
+        <button
           onClick={clearCompleted}
           className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
         >
@@ -45,12 +45,15 @@ export function UploadQueue() {
                     <FileText className="w-5 h-5 text-blue-400" />
                   )}
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-200 truncate pr-6" title={task.file.name}>
+                  <p
+                    className="text-sm font-medium text-slate-200 truncate pr-6"
+                    title={task.file.name}
+                  >
                     {task.file.name}
                   </p>
-                  
+
                   {task.status === 'uploading' && (
                     <div className="mt-2 space-y-1">
                       <div className="flex justify-between text-xs text-slate-400">
@@ -58,7 +61,7 @@ export function UploadQueue() {
                         <span>{task.progress}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
-                        <div 
+                        <div
                           className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-300 ease-out"
                           style={{ width: `${task.progress}%` }}
                         />
@@ -71,7 +74,7 @@ export function UploadQueue() {
                       {task.error || 'Upload failed'}
                     </p>
                   )}
-                  
+
                   {task.status === 'completed' && (
                     <p className="text-xs text-emerald-400 mt-1">Ready for analysis</p>
                   )}
