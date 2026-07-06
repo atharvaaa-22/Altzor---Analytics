@@ -1,73 +1,132 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useLogin } from '../hooks/useLogin';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
 
-export const LoginForm = () => {
+export const LoginForm = (): React.JSX.Element => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
   const { login, loading, error } = useLogin();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+
     const success = await login(email, password);
+
     if (success) {
-      navigate('/conversations');
+      void navigate('/dashboards', { replace: true });
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form
+      onSubmit={(e) => {
+        void handleSubmit(e);
+      }}
+      className="space-y-5"
+    >
       {error && (
-        <div className="bg-red-500/10 border border-red-500/50 text-red-400 p-3 rounded-lg text-sm">
+        <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          <svg
+            className="w-4 h-4 mt-0.5 shrink-0"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z"
+              clipRule="evenodd"
+            />
+          </svg>
+
           {error}
         </div>
       )}
-      
-      <div>
-        <label className="block text-sm font-medium text-slate-400 mb-1">Email</label>
-        <input 
-          type="email" 
-          required
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          disabled={loading}
-          className={`w-full bg-slate-950/50 border ${error ? 'border-red-500/50' : 'border-slate-800'} rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-800/50 focus:bg-slate-950/50`}
-          placeholder="you@company.com"
-        />
-      </div>
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <label className="block text-sm font-medium text-slate-400">Password</label>
-          <a href="#" className="text-xs text-orange-400 hover:text-orange-300 transition-colors">Forgot Password?</a>
-        </div>
-        <input 
-          type="password" 
+
+      <Input
+        label="Email address"
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        disabled={loading}
+        placeholder="you@company.com"
+        autoComplete="email"
+      />
+
+      <div className="relative">
+        <Input
+          label="Password"
+          type={showPassword ? 'text' : 'password'}
           required
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           disabled={loading}
-          className={`w-full bg-slate-950/50 border ${error ? 'border-red-500/50' : 'border-slate-800'} rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-orange-500 transition-all hover:bg-slate-800/50 focus:bg-slate-950/50`}
           placeholder="••••••••"
+          autoComplete="current-password"
         />
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowPassword((current) => !current);
+          }}
+          className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600 transition-colors"
+          aria-label={showPassword ? 'Hide password' : 'Show password'}
+        >
+          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+
+        <div className="flex justify-end mt-1.5">
+          <a
+            href="#"
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+          >
+            Forgot password?
+          </a>
+        </div>
       </div>
-      
-      <motion.button 
-        type="submit" 
-        disabled={loading}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-        className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white font-medium py-3 rounded-lg transition-all shadow-[0_0_20px_rgba(37,99,235,0.2)] flex justify-center items-center disabled:opacity-70 disabled:cursor-not-allowed"
-      >
-        {loading ? <Loader2 className="animate-spin text-white" size={20} /> : 'Sign In'}
-      </motion.button>
-      
-      <div className="text-center mt-6">
-        <p className="text-sm text-slate-400">
-          Don't have an account? <a href="#" className="text-orange-400 hover:text-orange-300">Create Account</a>
-        </p>
+
+      <Button type="submit" variant="primary" size="lg" loading={loading} className="w-full">
+        Sign in to Altzor
+      </Button>
+
+      <div className="relative flex items-center gap-3 py-2">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-xs text-slate-400 shrink-0">Demo credentials</span>
+        <div className="flex-1 h-px bg-slate-200" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <button
+          type="button"
+          onClick={() => {
+            setEmail('admin@acme.com');
+            setPassword('Admin@123456');
+          }}
+          className="px-3 py-2.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg text-slate-600 hover:text-indigo-700 transition-all text-left"
+        >
+          <div className="font-medium">Super Admin</div>
+          <div className="text-slate-400 truncate">admin@acme.com</div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setEmail('analyst@acme.com');
+            setPassword('Analyst@123456');
+          }}
+          className="px-3 py-2.5 bg-slate-50 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded-lg text-slate-600 hover:text-indigo-700 transition-all text-left"
+        >
+          <div className="font-medium">Analyst</div>
+          <div className="text-slate-400 truncate">analyst@acme.com</div>
+        </button>
       </div>
     </form>
   );

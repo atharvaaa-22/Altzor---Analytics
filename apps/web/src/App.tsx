@@ -33,6 +33,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }): React.JSX.
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 }
 
+function RootRoute(): React.JSX.Element {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return isAuthenticated ? <Navigate to="/dashboards" replace /> : <Navigate to="/login" replace />;
+}
+
 function SuperAdminRoute({ children }: { children: React.ReactNode }): React.JSX.Element {
   const user = useAuthStore((s) => s.user);
   return user?.role === 'SUPER_ADMIN' ? <>{children}</> : <Navigate to="/404" replace />;
@@ -43,6 +48,7 @@ export function App(): React.JSX.Element {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<RootRoute />} />
           <Route path="/login" element={<LoginPage />} />
 
           <Route
@@ -51,7 +57,6 @@ export function App(): React.JSX.Element {
               <ProtectedRoute>
                 <AppLayout>
                   <Routes>
-                    <Route path="/" element={<Navigate to="/conversations" replace />} />
                     <Route path="/conversations" element={<ConversationsPage />} />
                     <Route path="/conversations/:id" element={<ConversationsPage />} />
                     <Route path="/dashboards" element={<DashboardsPage />} />
@@ -61,15 +66,20 @@ export function App(): React.JSX.Element {
                     <Route path="/connections" element={<ConnectionsPage />} />
                     <Route path="/semantic" element={<SemanticPage />} />
                     <Route path="/settings" element={<SettingsPage />} />
-                    <Route 
-                      path="/admin" 
+                    <Route
+                      path="/admin"
                       element={
                         <SuperAdminRoute>
                           <AdminPage />
                         </SuperAdminRoute>
-                      } 
+                      }
                     />
-                    <Route path="/404" element={<div className="p-8 text-white text-center text-xl">404 - Not Found</div>} />
+                    <Route
+                      path="/404"
+                      element={
+                        <div className="p-8 text-white text-center text-xl">404 - Not Found</div>
+                      }
+                    />
                   </Routes>
                 </AppLayout>
               </ProtectedRoute>
