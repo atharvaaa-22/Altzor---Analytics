@@ -1,13 +1,12 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { parse as csvParse } from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
-// @ts-ignore
-import * as pdfParseModule from 'pdf-parse';
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+import { PDFParse } from 'pdf-parse';
+import mammoth from 'mammoth';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
-
-export type FileFormat = 'CSV' | 'XLSX' | 'JSON' | 'PDF';
+import type { FileCategory } from '@platform/shared';
+import { getFileCategory, isQueryable, SUPPORTED_FILE_TYPES } from '@platform/shared';
 
 const s3 = new S3Client({
   region: env.AWS_REGION,
@@ -32,11 +31,7 @@ interface ParsedFile {
   rowCount: number;
 }
 
-async function uploadToS3(
-  buffer: Buffer,
-  key: string,
-  contentType: string,
-): Promise<void> {
+async function uploadToS3(buffer: Buffer, key: string, contentType: string): Promise<void> {
   await s3.send(
     new PutObjectCommand({
       Bucket: env.S3_BUCKET,
@@ -57,23 +52,42 @@ async function deleteFromS3(key: string): Promise<void> {
   );
 }
 
-export async function parseFile(
-  buffer: Buffer,
-  format: FileFormat,
-  filename: string,
-): Promise<ParsedFile> {
+export function parseFile(buffer: Buffer, format: string): ParsedFile {
   switch (format) {
     case 'CSV':
       return parseCsv(buffer);
     case 'XLSX':
+    case 'XLS':
       return parseXlsx(buffer);
     case 'JSON':
       return parseJson(buffer);
-    case 'PDF':
-      return parsePdf(buffer, filename);
     default:
-      throw new Error(`Unsupported format: ${format}`);
+      throw new Error(`Unsupported tabular format: ${format}`);
   }
+}
+
+export async function parseDocument(
+  buffer: Buffer,
+  format: string,
+): Promise<{ text: string; rowCount: number }> {
+  let text = '';
+  if (format === 'PDF') {
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+    text = result.text;
+  } else if (format === 'DOCX') {
+    const result = await mammoth.extractRawText({ buffer });
+    text = result.value;
+  } else {
+    throw new Error(`Unsupported document format: ${format}`);
+  }
+
+  text = text.trim();
+  if (!text) throw new Error('Could not extract text from document');
+
+  const rowCount = text.split('\n').filter((l) => l.trim().length > 0).length;
+  return { text, rowCount };
 }
 
 function parseCsv(buffer: Buffer): ParsedFile {
@@ -88,7 +102,10 @@ function parseCsv(buffer: Buffer): ParsedFile {
   if (records.length === 0) throw new Error('CSV file is empty');
 
   const columns = Object.keys(records[0]!).map((name) =>
-    inferColumn(name, records.map((r) => r[name] ?? '')),
+    inferColumn(
+      name,
+      records.map((r) => r[name] ?? ''),
+    ),
   );
 
   return { columns, rows: records, rowCount: records.length };
@@ -105,7 +122,10 @@ function parseXlsx(buffer: Buffer): ParsedFile {
   if (records.length === 0) throw new Error('Excel sheet is empty');
 
   const columns = Object.keys(records[0]!).map((name) =>
-    inferColumn(name, records.map((r) => String(r[name] ?? ''))),
+    inferColumn(
+      name,
+      records.map((r) => String(r[name] ?? '')),
+    ),
   );
 
   return { columns, rows: records, rowCount: records.length };
@@ -123,32 +143,13 @@ function parseJson(buffer: Buffer): ParsedFile {
   if (records.length === 0) throw new Error('JSON file has no records');
 
   const columns = Object.keys(records[0]!).map((name) =>
-    inferColumn(name, records.map((r) => String(r[name] ?? ''))),
+    inferColumn(
+      name,
+      records.map((r) => String(r[name] ?? '')),
+    ),
   );
 
   return { columns, rows: records, rowCount: records.length };
-}
-
-async function parsePdf(buffer: Buffer, filename: string): Promise<ParsedFile> {
-  const data = await pdfParse(buffer);
-  const text = data.text.trim();
-
-  if (!text) throw new Error('Could not extract text from PDF');
-
-  const lines = text.split('\n').filter((l: string) => l.trim());
-  const rows = lines.map((line: string, idx: number) => ({
-    line_number: idx + 1,
-    content: line.trim(),
-  }));
-
-  return {
-    columns: [
-      { name: 'line_number', dataType: 'INT', sampleValues: ['1', '2', '3'], nullable: false },
-      { name: 'content', dataType: 'TEXT', sampleValues: lines.slice(0, 5), nullable: false },
-    ],
-    rows,
-    rowCount: rows.length,
-  };
 }
 
 function inferColumn(name: string, values: string[]): InferredColumn {
@@ -172,7 +173,10 @@ function inferColumn(name: string, values: string[]): InferredColumn {
     return { name: safeName, dataType: 'DOUBLE', sampleValues: samples, nullable };
   }
 
-  if (nonEmpty.length > 0 && nonEmpty.every((v) => ['true', 'false', '1', '0', 'yes', 'no'].includes(v.toLowerCase()))) {
+  if (
+    nonEmpty.length > 0 &&
+    nonEmpty.every((v) => ['true', 'false', '1', '0', 'yes', 'no'].includes(v.toLowerCase()))
+  ) {
     return { name: safeName, dataType: 'BOOLEAN', sampleValues: samples, nullable };
   }
 
@@ -209,13 +213,9 @@ async function createEphemeralTable(
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     const batch = rows.slice(i, i + BATCH_SIZE);
     const colNames = columns.map((c) => `"${c.name}"`).join(', ');
-    const placeholders = batch
-      .map(() => `(${columns.map(() => '?').join(', ')})`)
-      .join(', ');
+    const placeholders = batch.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ');
 
-    const values = batch.flatMap((row) =>
-      columns.map((c) => row[c.name] ?? null),
-    );
+    const values = batch.flatMap((row) => columns.map((c) => row[c.name] ?? null));
 
     await prisma.$executeRawUnsafe(
       `INSERT INTO "${tableName}" (${colNames}) VALUES ${placeholders}`,
@@ -227,32 +227,55 @@ async function createEphemeralTable(
 export async function processFileUpload(
   buffer: Buffer,
   originalName: string,
-  format: FileFormat,
+  format: string,
   userId: string,
   orgId: string,
 ): Promise<{
   fileId: string;
-  tableName: string;
-  columns: InferredColumn[];
-  rowCount: number;
+  tableName: string | null;
+  columns: InferredColumn[] | null;
+  rowCount: number | null;
+  category: FileCategory;
+  queryable: boolean;
 }> {
   if (buffer.length > env.MAX_FILE_SIZE_MB * 1024 * 1024) {
     throw new Error(`File exceeds maximum size of ${env.MAX_FILE_SIZE_MB} MB`);
   }
 
-  const s3Key = `uploads/${orgId}/${Date.now()}_${originalName}`;
-  await uploadToS3(buffer, s3Key, getMimeType(format));
-
-  const parsed = await parseFile(buffer, format, originalName);
-
-  if (parsed.rowCount > env.MAX_ROW_COUNT) {
-    throw new Error(
-      `File has ${parsed.rowCount} rows, exceeding the ${env.MAX_ROW_COUNT} row limit.`,
-    );
+  const ext = originalName.toLowerCase().substring(originalName.lastIndexOf('.'));
+  const category = getFileCategory(ext);
+  if (category === null) {
+    throw new Error(`Unsupported file extension: ${ext}`);
   }
+  const queryable = isQueryable(ext);
 
-  const tableName = `upload_${orgId.slice(0, 8)}_${Date.now()}`;
-  await createEphemeralTable(tableName, parsed.columns, parsed.rows);
+  const s3Key = `uploads/${orgId}/${Date.now()}_${originalName}`;
+  const mimeType = SUPPORTED_FILE_TYPES[format]?.mimeTypes[0] ?? 'application/octet-stream';
+  await uploadToS3(buffer, s3Key, mimeType);
+
+  let parsedColumns: InferredColumn[] | null = null;
+  let parsedRowCount: number | null = null;
+  let tableName: string | null = null;
+
+  if (category === 'tabular') {
+    const parsed = parseFile(buffer, format);
+
+    if (parsed.rowCount > env.MAX_ROW_COUNT) {
+      throw new Error(
+        `File has ${parsed.rowCount} rows, exceeding the ${env.MAX_ROW_COUNT} row limit.`,
+      );
+    }
+
+    tableName = `upload_${orgId.slice(0, 8)}_${Date.now()}`;
+    await createEphemeralTable(tableName, parsed.columns, parsed.rows);
+
+    parsedColumns = parsed.columns;
+    parsedRowCount = parsed.rowCount;
+  } else if (category === 'document') {
+    const parsedDoc = await parseDocument(buffer, format);
+    parsedRowCount = parsedDoc.rowCount;
+  }
+  // category === 'image': file is stored in S3 as-is; no parsing or table creation.
 
   const file = await prisma.uploadedFile.create({
     data: {
@@ -262,8 +285,8 @@ export async function processFileUpload(
       s3Key,
       s3Bucket: env.S3_BUCKET,
       ephemeralTable: tableName,
-      columnSchema: JSON.stringify(parsed.columns),
-      rowCount: parsed.rowCount,
+      columnSchema: parsedColumns ? JSON.stringify(parsedColumns) : null,
+      rowCount: parsedRowCount,
       userId,
       organizationId: orgId,
     },
@@ -272,8 +295,10 @@ export async function processFileUpload(
   return {
     fileId: file.id,
     tableName,
-    columns: parsed.columns,
-    rowCount: parsed.rowCount,
+    columns: parsedColumns,
+    rowCount: parsedRowCount,
+    category,
+    queryable,
   };
 }
 
@@ -292,14 +317,4 @@ export async function deleteUploadedFile(fileId: string): Promise<void> {
     where: { id: fileId },
     data: { isDeleted: true },
   });
-}
-
-function getMimeType(format: FileFormat): string {
-  const map: Record<FileFormat, string> = {
-    CSV: 'text/csv',
-    XLSX: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    JSON: 'application/json',
-    PDF: 'application/pdf',
-  };
-  return map[format];
 }

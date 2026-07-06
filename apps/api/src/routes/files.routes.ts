@@ -3,8 +3,9 @@ import multer from 'multer';
 import { prisma } from '../config/db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
-import { processFileUpload, deleteUploadedFile, FileFormat } from '../services/files/fileUpload.service.js';
+import { processFileUpload, deleteUploadedFile } from '../services/files/fileUpload.service.js';
 import { env } from '../config/env.js';
+import { SUPPORTED_FILE_TYPES, isExtensionAllowed, getFormatFromExtension } from '@platform/shared';
 
 const router = Router();
 router.use(authMiddleware);
@@ -15,12 +16,18 @@ const upload = multer({
     fileSize: env.MAX_FILE_SIZE_MB * 1024 * 1024,
   },
   fileFilter: (_req, file, cb) => {
-    const allowed = ['.csv', '.xlsx', '.json', '.pdf'];
     const ext = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
-    if (ext && allowed.includes(ext)) {
+    const mimeType = file.mimetype;
+
+    const isMimeAllowed = Object.values(SUPPORTED_FILE_TYPES).some((config) =>
+      config.mimeTypes.includes(mimeType),
+    );
+
+    if (isMimeAllowed || isExtensionAllowed(ext)) {
       cb(null, true);
     } else {
-      cb(new Error(`Unsupported file format: ${ext}. Allowed: ${allowed.join(', ')}`));
+      console.warn(`File rejected: ${file.originalname} (MIME: ${mimeType}, Ext: ${ext})`);
+      cb(new Error(`Unsupported file format: ${ext}. MIME type: ${mimeType}`));
     }
   },
 });
@@ -32,8 +39,14 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
       return;
     }
 
-    const ext = req.file.originalname.split('.').pop()?.toUpperCase() as FileFormat;
-    const format = ext === 'XLSX' ? 'XLSX' : ext as FileFormat;
+    const ext = req.file.originalname
+      .toLowerCase()
+      .substring(req.file.originalname.lastIndexOf('.'));
+    const format = getFormatFromExtension(ext);
+    if (!format) {
+      res.status(400).json({ error: `Could not determine format for ${ext}` });
+      return;
+    }
 
     const result = await processFileUpload(
       req.file.buffer,
@@ -48,7 +61,9 @@ router.post('/upload', upload.single('file'), async (req: Request, res: Response
       tableName: result.tableName,
       columns: result.columns,
       rowCount: result.rowCount,
-      message: 'File uploaded and ready for querying',
+      category: result.category,
+      queryable: result.queryable,
+      message: 'File uploaded successfully',
     });
   } catch (error) {
     res.status(400).json({ error: (error as Error).message });
@@ -75,10 +90,10 @@ router.get('/', async (req: Request, res: Response) => {
     },
   });
 
-  const serialized = files.map(f => ({
+  const serialized = files.map((f) => ({
     ...f,
     sizeBytes: f.sizeBytes.toString(),
-    columnSchema: f.columnSchema ? JSON.parse(f.columnSchema) : null
+    columnSchema: f.columnSchema ? (JSON.parse(f.columnSchema) as unknown) : null,
   }));
 
   res.json(serialized);
