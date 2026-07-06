@@ -1,83 +1,103 @@
+import type React from 'react';
 import { Database, Clock, MoreVertical, Server, HardDrive, Hexagon, Cloud } from 'lucide-react';
 import type { Connection } from '../types';
 import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
+import { Badge } from '../../../components/ui/Badge';
 
-const getStatusColor = (status: Connection['status']) => {
+const getStatusVariant = (
+  status: Connection['status'],
+): 'success' | 'error' | 'info' | 'neutral' => {
   switch (status) {
-    case 'healthy': return 'bg-emerald-500';
-    case 'failing': return 'bg-red-500';
-    case 'syncing': return 'bg-blue-500';
-    default: return 'bg-slate-500';
+    case 'healthy':
+      return 'success';
+    case 'failing':
+      return 'error';
+    case 'syncing':
+      return 'info';
+    default:
+      return 'neutral';
   }
 };
 
-const getStatusText = (status: Connection['status']) => {
+const getStatusText = (status: Connection['status']): string => {
   switch (status) {
-    case 'healthy': return 'Active';
-    case 'failing': return 'Failing';
-    case 'syncing': return 'Syncing';
-    default: return 'Unknown';
+    case 'healthy':
+      return 'Connected';
+    case 'failing':
+      return 'Error';
+    case 'syncing':
+      return 'Syncing';
+    default:
+      return 'Unknown';
   }
 };
 
-const getConnectionIcon = (type: Connection['type']) => {
+const getConnectionIcon = (type: Connection['type']): React.JSX.Element => {
+  const cls = 'shrink-0';
   switch (type) {
-    case 'postgres': return <Database className="text-blue-400" size={24} />;
-    case 'mysql': return <Server className="text-orange-400" size={24} />;
-    case 'sqlserver': return <HardDrive className="text-red-400" size={24} />;
-    case 'snowflake': return <Hexagon className="text-cyan-400" size={24} />;
-    case 'bigquery': return <Cloud className="text-blue-500" size={24} />;
-    default: return <Database className="text-slate-400" size={24} />;
+    case 'postgres':
+      return <Database className={clsx(cls, 'text-blue-600')} size={22} />;
+    case 'mysql':
+      return <Server className={clsx(cls, 'text-orange-500')} size={22} />;
+    case 'sqlserver':
+      return <HardDrive className={clsx(cls, 'text-red-500')} size={22} />;
+    case 'snowflake':
+      return <Hexagon className={clsx(cls, 'text-cyan-500')} size={22} />;
+    case 'bigquery':
+      return <Cloud className={clsx(cls, 'text-blue-500')} size={22} />;
+    default:
+      return <Database className={clsx(cls, 'text-slate-400')} size={22} />;
   }
 };
 
-export function ConnectionCard({ connection }: { connection: Connection }) {
+export function ConnectionCard({ connection }: { connection: Connection }): React.JSX.Element {
   return (
     <motion.div
-      whileHover={{ y: -4, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}
-      className="bg-slate-900/50 backdrop-blur-md border border-slate-800 rounded-2xl p-6 relative overflow-hidden transition-colors hover:border-slate-700 flex flex-col"
+      whileHover={{ y: -2 }}
+      transition={{ duration: 0.15 }}
+      className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col hover:shadow-md transition-shadow duration-200 relative"
     >
-      <div className="absolute top-0 right-0 p-4">
-        <button className="text-slate-500 hover:text-slate-300 transition-colors">
-          <MoreVertical size={20} />
-        </button>
-      </div>
+      <button className="absolute top-4 right-4 text-slate-300 hover:text-slate-500 transition-colors p-1 rounded-md hover:bg-slate-100">
+        <MoreVertical size={16} />
+      </button>
 
-      <div className="flex items-center gap-4 mb-4">
-        <div className="bg-slate-800 p-3 rounded-xl shadow-inner border border-slate-700/50">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center">
           {getConnectionIcon(connection.type)}
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-white truncate max-w-[180px]" title={connection.name}>{connection.name}</h3>
-          <p className="text-sm text-slate-400 capitalize">{connection.type}</p>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-slate-900 truncate" title={connection.name}>
+            {connection.name}
+          </h3>
+          <p className="text-xs text-slate-500 capitalize">{connection.type}</p>
         </div>
       </div>
 
-      <div className="mt-auto space-y-3 pt-4 border-t border-slate-800/50">
+      <div className="mt-auto space-y-2.5 pt-4 border-t border-slate-100">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-400 flex items-center gap-2">
-            Status
-          </span>
-          <div className="flex items-center gap-2 bg-slate-950/50 px-2.5 py-1 rounded-full border border-slate-800">
-            <span className={clsx("w-2 h-2 rounded-full shadow-sm", getStatusColor(connection.status), connection.status === 'syncing' && "animate-pulse")} />
-            <span className="text-xs font-medium text-slate-300">{getStatusText(connection.status)}</span>
-          </div>
+          <span className="text-xs text-slate-500">Status</span>
+          <Badge
+            variant={getStatusVariant(connection.status)}
+            dot
+            pulse={connection.status === 'syncing'}
+          >
+            {getStatusText(connection.status)}
+          </Badge>
         </div>
-
         <div className="flex items-center justify-between">
-          <span className="text-sm text-slate-400 flex items-center gap-2">
-            <Clock size={14} /> Last Sync
+          <span className="text-xs text-slate-500 flex items-center gap-1">
+            <Clock size={11} /> Last sync
           </span>
-          <span className="text-xs font-medium text-slate-300">
-            {connection.lastSyncAt ? connection.lastSyncAt : 'N/A'}
+          <span className="text-xs text-slate-600 font-medium">
+            {connection.lastSyncAt ?? 'Never'}
           </span>
         </div>
       </div>
-      
+
       {connection.error && (
-        <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
-          <p className="text-xs text-red-400 font-mono truncate" title={connection.error}>
+        <div className="mt-3 p-2.5 bg-red-50 border border-red-100 rounded-lg">
+          <p className="text-xs text-red-600 font-mono truncate" title={connection.error}>
             {connection.error}
           </p>
         </div>

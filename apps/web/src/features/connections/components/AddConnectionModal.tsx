@@ -1,104 +1,136 @@
+import type React from 'react';
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Database, Server, Hexagon, Cloud, HardDrive, ArrowLeft } from 'lucide-react';
-import { clsx } from 'clsx';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Database, Server, Hexagon, Cloud, HardDrive, ArrowLeft } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { ConnectionType } from '../types';
 import { PostgresForm } from './forms/PostgresForm';
 import { SnowflakeForm } from './forms/SnowflakeForm';
 import { BigQueryForm } from './forms/BigQueryForm';
+import { Modal } from '../../../components/ui/Modal';
 
-const CONNECTION_TYPES: { id: ConnectionType; name: string; icon: any; color: string }[] = [
-  { id: 'postgres', name: 'PostgreSQL', icon: Database, color: 'text-blue-400' },
-  { id: 'mysql', name: 'MySQL', icon: Server, color: 'text-orange-400' },
-  { id: 'sqlserver', name: 'SQL Server', icon: HardDrive, color: 'text-red-400' },
-  { id: 'snowflake', name: 'Snowflake', icon: Hexagon, color: 'text-cyan-400' },
-  { id: 'bigquery', name: 'BigQuery', icon: Cloud, color: 'text-blue-500' },
+interface ConnectionTypeDefinition {
+  id: ConnectionType;
+  name: string;
+  icon: LucideIcon;
+  description: string;
+}
+
+const CONNECTION_TYPES: ConnectionTypeDefinition[] = [
+  {
+    id: 'postgres',
+    name: 'PostgreSQL',
+    icon: Database,
+    description: 'Connect to Postgres or compatible databases',
+  },
+  { id: 'mysql', name: 'MySQL', icon: Server, description: 'MySQL and MariaDB databases' },
+  {
+    id: 'sqlserver',
+    name: 'SQL Server',
+    icon: HardDrive,
+    description: 'Microsoft SQL Server (MSSQL)',
+  },
+  {
+    id: 'snowflake',
+    name: 'Snowflake',
+    icon: Hexagon,
+    description: 'Snowflake cloud data warehouse',
+  },
+  {
+    id: 'bigquery',
+    name: 'BigQuery',
+    icon: Cloud,
+    description: 'Google BigQuery analytics warehouse',
+  },
 ];
 
-export function AddConnectionModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function AddConnectionModal({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+}): React.JSX.Element {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedType, setSelectedType] = useState<ConnectionType | null>(null);
 
-  const handleSelectType = (type: ConnectionType) => {
+  const handleSelectType = (type: ConnectionType): void => {
     setSelectedType(type);
     setStep(2);
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     setStep(1);
     setSelectedType(null);
     onClose();
   };
 
-  if (!isOpen) return null;
+  const selectedDef = CONNECTION_TYPES.find((t) => t.id === selectedType);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
-      >
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
-          <div className="flex items-center gap-3">
-            {step === 2 && (
-              <button onClick={() => setStep(1)} className="text-slate-400 hover:text-white transition-colors">
-                <ArrowLeft size={20} />
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title={step === 1 ? 'Add Data Connection' : `Connect to ${selectedDef?.name}`}
+      subtitle={
+        step === 1 ? 'Choose your data source type to get started.' : selectedDef?.description
+      }
+      size="lg"
+    >
+      <div className="p-6">
+        <AnimatePresence mode="wait">
+          {step === 1 ? (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              transition={{ duration: 0.15 }}
+              className="grid grid-cols-2 sm:grid-cols-3 gap-3"
+            >
+              {CONNECTION_TYPES.map((type) => {
+                const Icon = type.icon;
+                return (
+                  <button
+                    key={type.id}
+                    onClick={() => handleSelectType(type.id)}
+                    className="flex flex-col items-center justify-center p-5 bg-white hover:bg-indigo-50 border border-slate-200 hover:border-indigo-300 rounded-xl transition-all gap-3 group text-left"
+                  >
+                    <Icon className="w-9 h-9 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                    <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-700">
+                      {type.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.15 }}
+            >
+              <button
+                onClick={() => setStep(1)}
+                className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 mb-5 transition-colors"
+              >
+                <ArrowLeft size={15} /> Back to connection types
               </button>
-            )}
-            <h2 className="text-xl font-bold text-white">
-              {step === 1 ? 'Add Data Connection' : `Connect to ${CONNECTION_TYPES.find(t => t.id === selectedType)?.name}`}
-            </h2>
-          </div>
-          <button onClick={handleClose} className="text-slate-400 hover:text-white transition-colors">
-            <X size={24} />
-          </button>
-        </div>
-
-        <div className="p-6 overflow-y-auto">
-          <AnimatePresence mode="wait">
-            {step === 1 ? (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="grid grid-cols-2 sm:grid-cols-3 gap-4"
-              >
-                {CONNECTION_TYPES.map((type) => {
-                  const Icon = type.icon;
-                  return (
-                    <button
-                      key={type.id}
-                      onClick={() => handleSelectType(type.id)}
-                      className="flex flex-col items-center justify-center p-6 bg-slate-800/50 hover:bg-slate-800 border border-slate-700/50 hover:border-slate-600 rounded-xl transition-all gap-3 group"
-                    >
-                      <Icon className={clsx("w-10 h-10 transition-transform group-hover:scale-110", type.color)} />
-                      <span className="text-sm font-medium text-slate-200">{type.name}</span>
-                    </button>
-                  );
-                })}
-              </motion.div>
-            ) : (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-              >
-                {selectedType === 'postgres' || selectedType === 'mysql' || selectedType === 'sqlserver' ? (
-                  <PostgresForm type={selectedType} onClose={handleClose} />
-                ) : selectedType === 'snowflake' ? (
-                  <SnowflakeForm onClose={handleClose} />
-                ) : selectedType === 'bigquery' ? (
-                  <BigQueryForm onClose={handleClose} />
-                ) : null}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </motion.div>
-    </div>
+              {selectedType === 'postgres' ||
+              selectedType === 'mysql' ||
+              selectedType === 'sqlserver' ? (
+                <PostgresForm type={selectedType} onClose={handleClose} />
+              ) : selectedType === 'snowflake' ? (
+                <SnowflakeForm onClose={handleClose} />
+              ) : selectedType === 'bigquery' ? (
+                <BigQueryForm onClose={handleClose} />
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </Modal>
   );
 }
