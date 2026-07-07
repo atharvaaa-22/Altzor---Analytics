@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../../config/db.js';
-import { ChartType } from '../ai/chartDetector.js';
+import type { Dashboard, DashboardWidget, DashboardShare } from '@prisma/client';
 
 export const WidgetType = {
   CHART: 'CHART',
@@ -20,7 +20,7 @@ export interface CreateWidgetInput {
   title?: string;
   savedQueryId?: string;
   naturalQuery?: string;
-  chartType?: ChartType | string;
+  chartType?: string;
   chartConfig?: Record<string, unknown>;
   gridPosition: { x: number; y: number; w: number; h: number };
   markdownContent?: string;
@@ -37,7 +37,7 @@ export async function createDashboard(
   userId: string,
   orgId: string,
   input: CreateDashboardInput,
-) {
+): Promise<Dashboard> {
   return prisma.dashboard.create({
     data: {
       title: input.title,
@@ -51,7 +51,7 @@ export async function createDashboard(
 export async function addWidget(
   dashboardId: string,
   input: CreateWidgetInput,
-) {
+): Promise<DashboardWidget> {
   return prisma.dashboardWidget.create({
     data: {
       dashboardId,
@@ -67,10 +67,7 @@ export async function addWidget(
   });
 }
 
-export async function updateLayout(
-  dashboardId: string,
-  input: UpdateLayoutInput,
-) {
+export async function updateLayout(dashboardId: string, input: UpdateLayoutInput): Promise<void> {
   const updates = input.widgets.map((w) =>
     prisma.dashboardWidget.update({
       where: { id: w.widgetId },
@@ -85,7 +82,7 @@ export async function duplicateDashboard(
   dashboardId: string,
   userId: string,
   orgId: string,
-) {
+): Promise<Dashboard> {
   const source = await prisma.dashboard.findUniqueOrThrow({
     where: { id: dashboardId },
     include: { widgets: true },
@@ -125,7 +122,7 @@ export async function shareDashboard(
   dashboardId: string,
   targetUserId: string,
   canEdit: boolean = false,
-) {
+): Promise<DashboardShare> {
   return prisma.dashboardShare.upsert({
     where: {
       dashboardId_userId: { dashboardId, userId: targetUserId },
@@ -135,7 +132,7 @@ export async function shareDashboard(
   });
 }
 
-export async function generatePublicLink(dashboardId: string) {
+export async function generatePublicLink(dashboardId: string): Promise<Dashboard> {
   const slug = crypto.randomBytes(16).toString('hex');
   return prisma.dashboard.update({
     where: { id: dashboardId },
@@ -143,28 +140,28 @@ export async function generatePublicLink(dashboardId: string) {
   });
 }
 
-export async function archiveDashboard(dashboardId: string) {
+export async function archiveDashboard(dashboardId: string): Promise<Dashboard> {
   return prisma.dashboard.update({
     where: { id: dashboardId },
     data: { isArchived: true },
   });
 }
 
-export async function deleteDashboard(dashboardId: string) {
+export async function deleteDashboard(dashboardId: string): Promise<Dashboard> {
   return prisma.dashboard.delete({ where: { id: dashboardId } });
 }
 
 export async function updateDashboardFilters(
   dashboardId: string,
   filters: Record<string, unknown>,
-) {
+): Promise<Dashboard> {
   return prisma.dashboard.update({
     where: { id: dashboardId },
     data: { filters: JSON.stringify(filters) },
   });
 }
 
-export async function refreshWidget(widgetId: string) {
+export async function refreshWidget(widgetId: string): Promise<DashboardWidget> {
   return prisma.dashboardWidget.update({
     where: { id: widgetId },
     data: { lastRefreshedAt: new Date(), cachedData: null },
