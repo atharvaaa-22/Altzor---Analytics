@@ -226,7 +226,7 @@ function createSqliteConnector(): DbConnector {
             const sampleResult = await prisma.$queryRawUnsafe(
               `SELECT DISTINCT "${col.name}" AS val FROM "${tableName}" WHERE "${col.name}" IS NOT NULL LIMIT 5`,
             );
-            sampleValues = sampleResult.map((r) => String(r.val));
+            sampleValues = sampleResult.map((r: any) => String(r.val));
           } catch {
             // ignore
           }
