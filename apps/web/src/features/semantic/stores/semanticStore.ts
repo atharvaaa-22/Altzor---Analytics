@@ -9,7 +9,7 @@ interface SemanticStore {
 
 export const useSemanticStore = create<SemanticStore>((set) => ({
   selectedTableId: null,
-  setSelectedTableId: (id) => set({ selectedTableId: id }),
+  setSelectedTableId: (id): void => set({ selectedTableId: id }),
   isSyncing: false,
-  setIsSyncing: (isSyncing) => set({ isSyncing }),
+  setIsSyncing: (isSyncing): void => set({ isSyncing }),
 }));

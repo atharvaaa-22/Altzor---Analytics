@@ -68,7 +68,9 @@ export function PieChart({
         <Tooltip
           content={
             <CustomTooltip
-              formatter={(value: string | number) => formatValue(value, valueFormat)}
+              formatter={(value: unknown): React.ReactNode =>
+                String(formatValue(value as string | number, valueFormat))
+              }
             />
           }
         />

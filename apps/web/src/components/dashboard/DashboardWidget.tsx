@@ -1,3 +1,4 @@
+import type React from 'react';
 import { ChartRenderer } from '../charts/ChartRenderer';
 import ReactMarkdown from 'react-markdown';
 import { MetricCard } from '../visualizations';
@@ -23,33 +24,34 @@ export function DashboardWidget({
   widget,
   onRefresh,
   onCrossFilter,
-}: DashboardWidgetProps) {
-  const renderContent = () => {
+}: DashboardWidgetProps): React.JSX.Element {
+  const renderContent = (): React.JSX.Element | null => {
     switch (widget.type) {
       case 'CHART':
         return widget.cachedData ? (
           <ChartRenderer
             data={(widget.cachedData as { rows: Record<string, unknown>[] }).rows ?? []}
-            columns={(widget.cachedData as { columns: Array<{ name: string; dataType: string }> }).columns ?? []}
+            columns={
+              (widget.cachedData as { columns: Array<{ name: string; dataType: string }> })
+                .columns ?? []
+            }
             chartType={widget.chartType ?? 'BAR'}
-            onDrillDown={(point) => onCrossFilter(point)}
+            onDrillDown={(point: Record<string, unknown>): void => onCrossFilter(point)}
           />
         ) : (
           <div className="widget-empty">No data. Click refresh.</div>
         );
 
-      case 'KPI_CARD':
+      case 'KPI_CARD': {
         const kpiValue = widget.cachedData
           ? Number(Object.values(widget.cachedData as Record<string, unknown>)[0] ?? 0)
           : 0;
         return (
           <div className="w-full h-full p-4 flex items-center justify-center">
-            <MetricCard 
-              title={widget.title ?? 'KPI'} 
-              value={kpiValue} 
-            />
+            <MetricCard title={widget.title ?? 'KPI'} value={kpiValue} />
           </div>
         );
+      }
 
       case 'DATA_TABLE':
         return widget.cachedData ? (
@@ -57,9 +59,11 @@ export function DashboardWidget({
             <table>
               <thead>
                 <tr>
-                  {((widget.cachedData as { columns: Array<{ name: string }> }).columns ?? []).map((col) => (
-                    <th key={col.name}>{col.name}</th>
-                  ))}
+                  {((widget.cachedData as { columns: Array<{ name: string }> }).columns ?? []).map(
+                    (col) => (
+                      <th key={col.name}>{col.name}</th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -67,7 +71,9 @@ export function DashboardWidget({
                   .slice(0, 50)
                   .map((row, i) => (
                     <tr key={i}>
-                      {((widget.cachedData as { columns: Array<{ name: string }> }).columns ?? []).map((col) => (
+                      {(
+                        (widget.cachedData as { columns: Array<{ name: string }> }).columns ?? []
+                      ).map((col) => (
                         <td key={col.name}>{String(row[col.name] ?? '')}</td>
                       ))}
                     </tr>

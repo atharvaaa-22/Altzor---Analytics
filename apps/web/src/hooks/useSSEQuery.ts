@@ -38,7 +38,12 @@ const initialState: QueryStreamState = {
   messageId: null,
 };
 
-export function useSSEQuery() {
+export function useSSEQuery(): {
+  state: QueryStreamState;
+  isStreaming: boolean;
+  sendQuestion: (conversationId: string, question: string, connectionId: string) => Promise<void>;
+  cancel: () => void;
+} {
   const [state, setState] = useState<QueryStreamState>(initialState);
   const [isStreaming, setIsStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -51,18 +56,15 @@ export function useSSEQuery() {
       abortRef.current = new AbortController();
 
       try {
-        const response = await fetch(
-          `/api/conversations/${conversationId}/messages`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
-            },
-            body: JSON.stringify({ question, connectionId }),
-            signal: abortRef.current.signal,
+        const response = await fetch(`/api/conversations/${conversationId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('accessToken')}`,
           },
-        );
+          body: JSON.stringify({ question, connectionId }),
+          signal: abortRef.current.signal,
+        });
 
         if (!response.ok || !response.body) {
           throw new Error(`Request failed: ${response.status}`);
@@ -72,8 +74,10 @@ export function useSSEQuery() {
         const decoder = new TextDecoder();
         let buffer = '';
 
-        while (true) {
+        let isDone = false;
+        while (!isDone) {
           const { done, value } = await reader.read();
+          isDone = done;
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -91,13 +95,13 @@ export function useSSEQuery() {
             }
 
             if (!eventType || !eventData) continue;
-            const data = JSON.parse(eventData) as Record<string, any>;
+            const data = JSON.parse(eventData) as Record<string, unknown>;
 
             switch (eventType) {
               case 'status':
                 setState((prev) => ({
                   ...prev,
-                  stage: data.stage as any,
+                  stage: data.stage as QueryStreamState['stage'],
                   statusMessage: data.message as string,
                 }));
                 break;
@@ -112,7 +116,7 @@ export function useSSEQuery() {
                 setState((prev) => ({
                   ...prev,
                   results: data.rows as Record<string, unknown>[],
-                  columns: data.columns as any,
+                  columns: data.columns as Array<{ name: string; dataType: string }>,
                   rowCount: data.rowCount as number,
                   executionTimeMs: data.executionTimeMs as number,
                   costEstimate: data.costEstimate as number,
@@ -123,10 +127,16 @@ export function useSSEQuery() {
                 setState((prev) => ({ ...prev, chartType: data.chartType as string }));
                 break;
               case 'narrative':
-                setState((prev) => ({ ...prev, narrative: data as any }));
+                setState((prev) => ({
+                  ...prev,
+                  narrative: data as unknown as QueryStreamState['narrative'],
+                }));
                 break;
               case 'lineage':
-                setState((prev) => ({ ...prev, lineage: data as any }));
+                setState((prev) => ({
+                  ...prev,
+                  lineage: data as unknown as QueryStreamState['lineage'],
+                }));
                 break;
               case 'warnings':
                 setState((prev) => ({ ...prev, warnings: data.warnings as string[] }));

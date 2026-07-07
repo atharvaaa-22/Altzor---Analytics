@@ -1,5 +1,24 @@
 import { prisma } from '../../config/db.js';
-import { ChartType } from '../ai/chartDetector.js';
+import type { SavedQuery, QueryShare } from '@prisma/client';
+
+export interface SavedQueryWithRelations extends Omit<
+  SavedQuery,
+  'tags' | 'templateParams' | 'chartConfig'
+> {
+  tags: string[];
+  templateParams: Record<string, unknown> | null;
+  chartConfig: Record<string, unknown> | null;
+  user: { firstName: string | null; lastName: string | null };
+  connection: { name: string; type: string } | null;
+  _count: { shares: number };
+}
+
+export interface ListSavedQueriesResult {
+  queries: SavedQueryWithRelations[];
+  total: number;
+  page: number;
+  limit: number;
+}
 
 export interface SaveQueryInput {
   title: string;
@@ -9,7 +28,7 @@ export interface SaveQueryInput {
   tags?: string[];
   isTemplate?: boolean;
   templateParams?: Record<string, { type: string; label: string; default?: string }>;
-  chartType?: ChartType | string;
+  chartType?: string;
   chartConfig?: Record<string, unknown>;
   connectionId?: string;
 }
@@ -31,7 +50,7 @@ export async function saveQuery(
   userId: string,
   orgId: string,
   input: SaveQueryInput,
-) {
+): Promise<SavedQuery> {
   return prisma.savedQuery.create({
     data: {
       title: input.title,
@@ -54,34 +73,30 @@ export async function listSavedQueries(
   orgId: string,
   userId: string,
   filters: QueryListFilters,
-) {
+): Promise<ListSavedQueriesResult> {
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 20;
 
   const where: Record<string, unknown> = {
     organizationId: orgId,
-    OR: [
-      { userId },
-      { isBroadcast: true },
-      { shares: { some: { userId } } },
-    ],
+    OR: [{ userId }, { isBroadcast: true }, { shares: { some: { userId } } }],
   };
 
   if (filters.search) {
     where['AND'] = where['AND'] || [];
-    (where['AND'] as any[]).push({
+    (where['AND'] as Record<string, unknown>[]).push({
       OR: [
         { title: { contains: filters.search } },
         { description: { contains: filters.search } },
         { naturalQuery: { contains: filters.search } },
-      ]
+      ],
     });
   }
 
   if (filters.tags && filters.tags.length > 0) {
-    const tagConditions = filters.tags.map(tag => ({ tags: { contains: `"${tag}"` } }));
+    const tagConditions = filters.tags.map((tag) => ({ tags: { contains: `"${tag}"` } }));
     where['AND'] = where['AND'] || [];
-    (where['AND'] as any[]).push({ OR: tagConditions });
+    (where['AND'] as Record<string, unknown>[]).push({ OR: tagConditions });
   }
 
   if (filters.creatorId) {
@@ -116,20 +131,19 @@ export async function listSavedQueries(
     prisma.savedQuery.count({ where }),
   ]);
 
-  const parsedQueries = queries.map(q => ({
+  const parsedQueries = queries.map((q) => ({
     ...q,
-    tags: q.tags ? JSON.parse(q.tags) as string[] : [],
-    templateParams: q.templateParams ? JSON.parse(q.templateParams) as Record<string, unknown> : null,
-    chartConfig: q.chartConfig ? JSON.parse(q.chartConfig) as Record<string, unknown> : null,
+    tags: q.tags ? (JSON.parse(q.tags) as string[]) : [],
+    templateParams: q.templateParams
+      ? (JSON.parse(q.templateParams) as Record<string, unknown>)
+      : null,
+    chartConfig: q.chartConfig ? (JSON.parse(q.chartConfig) as Record<string, unknown>) : null,
   }));
 
   return { queries: parsedQueries, total, page, limit };
 }
 
-export function resolveTemplateParams(
-  sql: string,
-  params: Record<string, string>,
-): string {
+export function resolveTemplateParams(sql: string, params: Record<string, string>): string {
   let resolved = sql;
   for (const [key, value] of Object.entries(params)) {
     const sanitizedValue = value.replace(/['";\\]/g, '');
@@ -138,10 +152,7 @@ export function resolveTemplateParams(
   return resolved;
 }
 
-export async function shareQuery(
-  queryId: string,
-  targetUserId: string,
-) {
+export async function shareQuery(queryId: string, targetUserId: string): Promise<QueryShare> {
   return prisma.queryShare.upsert({
     where: {
       savedQueryId_userId: { savedQueryId: queryId, userId: targetUserId },
@@ -151,7 +162,7 @@ export async function shareQuery(
   });
 }
 
-export async function broadcastQuery(queryId: string) {
+export async function broadcastQuery(queryId: string): Promise<SavedQuery> {
   return prisma.savedQuery.update({
     where: { id: queryId },
     data: { isBroadcast: true },
@@ -163,7 +174,7 @@ export async function recordExecution(
   rowCount: number,
   durationMs: number,
   cost: number,
-) {
+): Promise<SavedQuery> {
   return prisma.savedQuery.update({
     where: { id: queryId },
     data: {

@@ -1,14 +1,43 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { semanticApi } from '../api';
 import { useSemanticStore } from '../stores/semanticStore';
 import type { SemanticSchema, SemanticTable, SemanticColumn } from '../types';
 
-export const useSemanticSchema = (connectionId: string) => {
+export const useSemanticSchema = (
+  connectionId: string,
+): {
+  schema: SemanticSchema | undefined;
+  isLoading: boolean;
+  error: Error | null;
+  updateTable: UseMutationResult<
+    unknown,
+    Error,
+    { tableId: string; data: Partial<SemanticTable> },
+    { previousSchema: SemanticSchema | undefined }
+  >['mutate'];
+  updateColumn: UseMutationResult<
+    unknown,
+    Error,
+    { columnId: string; data: Partial<SemanticColumn> },
+    { previousSchema: SemanticSchema | undefined }
+  >['mutate'];
+  syncSchema: UseMutationResult<unknown, Error, void, unknown>['mutate'];
+  isSyncing: boolean;
+} => {
   const queryClient = useQueryClient();
   const queryKey = ['semantic-schema', connectionId];
   const isSyncing = useSemanticStore((state) => state.isSyncing);
 
-  const { data: schema, isLoading, error } = useQuery<SemanticSchema>({
+  const {
+    data: schema,
+    isLoading,
+    error,
+  } = useQuery<SemanticSchema>({
     queryKey,
     queryFn: () => semanticApi.getSchema(connectionId),
     enabled: !!connectionId,
@@ -25,7 +54,7 @@ export const useSemanticSchema = (connectionId: string) => {
         queryClient.setQueryData<SemanticSchema>(queryKey, {
           ...previousSchema,
           tables: previousSchema.tables.map((table) =>
-            table.id === tableId ? { ...table, ...data } : table
+            table.id === tableId ? { ...table, ...data } : table,
           ),
         });
       }
@@ -38,7 +67,7 @@ export const useSemanticSchema = (connectionId: string) => {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
     },
   });
 
@@ -54,9 +83,7 @@ export const useSemanticSchema = (connectionId: string) => {
           ...previousSchema,
           tables: previousSchema.tables.map((table) => ({
             ...table,
-            columns: table.columns.map((col) =>
-              col.id === columnId ? { ...col, ...data } : col
-            ),
+            columns: table.columns.map((col) => (col.id === columnId ? { ...col, ...data } : col)),
           })),
         });
       }
@@ -69,7 +96,7 @@ export const useSemanticSchema = (connectionId: string) => {
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
     },
   });
 
@@ -83,9 +110,9 @@ export const useSemanticSchema = (connectionId: string) => {
       // For now we'll just invalidate after a delay or immediately
       setTimeout(() => {
         useSemanticStore.getState().setIsSyncing(false);
-        queryClient.invalidateQueries({ queryKey });
+        void queryClient.invalidateQueries({ queryKey });
       }, 3000); // Simulate job duration
-    }
+    },
   });
 
   return {

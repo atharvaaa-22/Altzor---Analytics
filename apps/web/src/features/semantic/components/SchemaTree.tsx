@@ -1,5 +1,6 @@
+import type React from 'react';
 import { useState } from 'react';
-import { Folder, FolderOpen, Table as TableIcon } from 'lucide-react';
+import { ChevronRight, Folder, FolderOpen, Table as TableIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { SemanticSchema } from '../types';
 
@@ -9,58 +10,77 @@ interface SchemaTreeProps {
   onSelectTable: (id: string) => void;
 }
 
-export function SchemaTree({ schema, selectedTableId, onSelectTable }: SchemaTreeProps) {
-  // Group tables by schema
-  const schemas = schema.tables.reduce((acc, table) => {
-    const s = table.schema || 'public';
-    if (!acc[s]) acc[s] = [];
-    acc[s].push(table);
-    return acc;
-  }, {} as Record<string, typeof schema.tables>);
-
-  const [expandedSchemas, setExpandedSchemas] = useState<Record<string, boolean>>(
-    Object.keys(schemas).reduce((acc, s) => ({ ...acc, [s]: true }), {})
+export function SchemaTree({
+  schema,
+  selectedTableId,
+  onSelectTable,
+}: SchemaTreeProps): React.JSX.Element {
+  const schemas = schema.tables.reduce(
+    (acc, table) => {
+      const s = table.schema || 'public';
+      if (!acc[s]) acc[s] = [];
+      acc[s].push(table);
+      return acc;
+    },
+    {} as Record<string, typeof schema.tables>,
   );
 
-  const toggleSchema = (s: string) => {
+  const [expandedSchemas, setExpandedSchemas] = useState<Record<string, boolean>>(
+    Object.keys(schemas).reduce((acc, s) => ({ ...acc, [s]: true }), {}),
+  );
+
+  const toggleSchema = (s: string): void => {
     setExpandedSchemas((prev) => ({ ...prev, [s]: !prev[s] }));
   };
 
   return (
-    <div className="flex flex-col w-64 border-r border-slate-800 h-full overflow-y-auto bg-slate-900/50 p-4 shrink-0">
-      <h3 className="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+    <div className="flex-1 overflow-y-auto p-3">
+      <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3 px-1">
         Schemas
-      </h3>
-      
-      <div className="space-y-1">
+      </p>
+
+      <div className="space-y-0.5">
         {Object.entries(schemas).map(([schemaName, tables]) => (
-          <div key={schemaName} className="space-y-1">
+          <div key={schemaName}>
             <button
               onClick={() => toggleSchema(schemaName)}
-              className="flex items-center space-x-2 w-full px-2 py-1.5 text-left text-sm text-slate-300 hover:bg-slate-800 rounded-md transition-colors"
+              className="flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-xs font-medium text-slate-600 hover:bg-slate-50 rounded-md transition-colors"
             >
+              <ChevronRight
+                size={13}
+                className={clsx(
+                  'text-slate-400 transition-transform shrink-0',
+                  expandedSchemas[schemaName] && 'rotate-90',
+                )}
+              />
               {expandedSchemas[schemaName] ? (
-                <FolderOpen className="w-4 h-4 text-slate-400" />
+                <FolderOpen size={13} className="text-indigo-400 shrink-0" />
               ) : (
-                <Folder className="w-4 h-4 text-slate-400" />
+                <Folder size={13} className="text-slate-400 shrink-0" />
               )}
               <span>{schemaName}</span>
             </button>
-            
+
             {expandedSchemas[schemaName] && (
-              <div className="pl-6 space-y-1">
+              <div className="pl-5 mt-0.5 space-y-0.5">
                 {tables.map((table) => (
                   <button
                     key={table.id}
                     onClick={() => onSelectTable(table.id)}
                     className={clsx(
-                      "flex items-center space-x-2 w-full px-2 py-1.5 text-left text-sm rounded-md transition-colors",
+                      'flex items-center gap-1.5 w-full px-2 py-1.5 text-left text-xs rounded-md transition-colors',
                       selectedTableId === table.id
-                        ? "bg-blue-600/20 text-blue-400"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-300"
+                        ? 'bg-indigo-50 text-indigo-700 font-medium'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
                     )}
                   >
-                    <TableIcon className="w-4 h-4" />
+                    <TableIcon
+                      size={12}
+                      className={clsx(
+                        'shrink-0',
+                        selectedTableId === table.id ? 'text-indigo-500' : 'text-slate-400',
+                      )}
+                    />
                     <span className="truncate" title={table.name}>
                       {table.name}
                     </span>

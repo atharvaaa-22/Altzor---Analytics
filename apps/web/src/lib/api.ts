@@ -6,10 +6,7 @@ interface ApiOptions extends RequestInit {
   params?: Record<string, string>;
 }
 
-async function apiRequest<T>(
-  path: string,
-  options: ApiOptions = {},
-): Promise<T> {
+async function apiRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { accessToken, updateToken, clearAuth } = useAuthStore.getState();
 
   const url = new URL(`${BASE_URL}${path}`, window.location.origin);
@@ -40,7 +37,7 @@ async function apiRequest<T>(
     });
 
     if (refreshResponse.ok) {
-      const data = await refreshResponse.json();
+      const data = (await refreshResponse.json()) as { accessToken: string };
       updateToken(data.accessToken);
 
       // Retry original request
@@ -58,7 +55,9 @@ async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+    const error = (await response.json().catch(() => ({ error: 'Request failed' }))) as {
+      error?: string;
+    };
     throw new Error(error.error ?? `HTTP ${response.status}`);
   }
 
@@ -66,27 +65,26 @@ async function apiRequest<T>(
 }
 
 export const api = {
-  get: <T>(path: string, params?: Record<string, string>) =>
+  get: <T>(path: string, params?: Record<string, string>): Promise<T> =>
     apiRequest<T>(path, { method: 'GET', params }),
 
-  post: <T>(path: string, body?: unknown) =>
+  post: <T>(path: string, body?: unknown): Promise<T> =>
     apiRequest<T>(path, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  put: <T>(path: string, body?: unknown) =>
+  put: <T>(path: string, body?: unknown): Promise<T> =>
     apiRequest<T>(path, {
       method: 'PUT',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  patch: <T>(path: string, body?: unknown) =>
+  patch: <T>(path: string, body?: unknown): Promise<T> =>
     apiRequest<T>(path, {
       method: 'PATCH',
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  delete: <T>(path: string) =>
-    apiRequest<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string): Promise<T> => apiRequest<T>(path, { method: 'DELETE' }),
 };

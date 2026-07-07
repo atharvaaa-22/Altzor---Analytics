@@ -13,5 +13,5 @@ export interface Connection {
 export interface ConnectionFormData {
   name: string;
   type: ConnectionType;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }

@@ -44,7 +44,16 @@ export function FilesPage(): React.JSX.Element {
           />
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {files.map((file) => (
+            {(
+              files as Array<{
+                id: string;
+                name: string;
+                size: number;
+                createdAt: string;
+                type: string;
+                status: 'ready' | 'failed' | 'processing';
+              }>
+            ).map((file) => (
               <FileCard key={file.id} file={file} onDelete={() => deleteFile(file.id)} />
             ))}
           </div>

@@ -1,10 +1,10 @@
-
+import type React from 'react';
 
 interface ConfidenceBadgeProps {
   score: number;
 }
 
-export function ConfidenceBadge({ score }: ConfidenceBadgeProps) {
+export function ConfidenceBadge({ score }: ConfidenceBadgeProps): React.JSX.Element {
   const percentage = Math.round(score * 100);
 
   let color = '#10B981'; // green

@@ -1,4 +1,25 @@
 import { prisma } from '../../config/db.js';
+import { logger } from '../../utils/logger.js';
+import type { Comment, Annotation } from '@prisma/client';
+
+export type CommentResult = Omit<Comment, 'mentions'> & {
+  mentions: string[];
+  user: { firstName: string | null; lastName: string | null; email: string };
+};
+
+export type CommentThreadResult = Omit<Comment, 'mentions'> & {
+  mentions: string[];
+  user: { firstName: string | null; lastName: string | null; avatarUrl: string | null };
+  replies: (Omit<Comment, 'mentions'> & {
+    mentions: string[];
+    user: { firstName: string | null; lastName: string | null; avatarUrl: string | null };
+  })[];
+};
+
+export type AnnotationResult = Omit<Annotation, 'dataPointRef'> & {
+  dataPointRef: Record<string, unknown>;
+  user: { firstName: string | null; lastName: string | null; avatarUrl?: string | null };
+};
 
 export interface CreateCommentInput {
   content: string;
@@ -23,7 +44,7 @@ export interface CreateAnnotationInput {
 export async function createComment(
   userId: string,
   input: CreateCommentInput,
-) {
+): Promise<CommentResult> {
   const comment = await prisma.comment.create({
     data: {
       content: input.content,
@@ -39,24 +60,19 @@ export async function createComment(
   });
 
   if (input.mentions && input.mentions.length > 0) {
-    await notifyMentionedUsers(
-      input.mentions,
-      userId,
-      input.content,
-      input.dashboardId,
-    );
+    await notifyMentionedUsers(input.mentions, userId, input.content, input.dashboardId);
   }
 
   return {
     ...comment,
-    mentions: comment.mentions ? JSON.parse(comment.mentions) : [],
+    mentions: comment.mentions ? (JSON.parse(comment.mentions) as string[]) : [],
   };
 }
 
 export async function getComments(
   dashboardId: string,
   widgetId?: string,
-) {
+): Promise<CommentThreadResult[]> {
   const where: Record<string, unknown> = { dashboardId };
   if (widgetId) where['widgetId'] = widgetId;
 
@@ -77,20 +93,17 @@ export async function getComments(
     orderBy: { createdAt: 'desc' },
   });
 
-  return comments.map(c => ({
+  return comments.map((c) => ({
     ...c,
-    mentions: c.mentions ? JSON.parse(c.mentions) : [],
-    replies: c.replies.map(r => ({
+    mentions: c.mentions ? (JSON.parse(c.mentions) as string[]) : [],
+    replies: c.replies.map((r) => ({
       ...r,
-      mentions: r.mentions ? JSON.parse(r.mentions) : [],
+      mentions: r.mentions ? (JSON.parse(r.mentions) as string[]) : [],
     })),
   }));
 }
 
-export async function deleteComment(
-  commentId: string,
-  userId: string,
-) {
+export async function deleteComment(commentId: string, userId: string): Promise<void> {
   const comment = await prisma.comment.findUniqueOrThrow({
     where: { id: commentId },
   });
@@ -105,7 +118,7 @@ export async function deleteComment(
 export async function createAnnotation(
   userId: string,
   input: CreateAnnotationInput,
-) {
+): Promise<AnnotationResult> {
   const annotation = await prisma.annotation.create({
     data: {
       content: input.content,
@@ -120,11 +133,11 @@ export async function createAnnotation(
 
   return {
     ...annotation,
-    dataPointRef: JSON.parse(annotation.dataPointRef),
+    dataPointRef: JSON.parse(annotation.dataPointRef) as Record<string, unknown>,
   };
 }
 
-export async function getAnnotations(widgetId: string) {
+export async function getAnnotations(widgetId: string): Promise<AnnotationResult[]> {
   const annotations = await prisma.annotation.findMany({
     where: { widgetId },
     include: {
@@ -133,16 +146,13 @@ export async function getAnnotations(widgetId: string) {
     orderBy: { createdAt: 'desc' },
   });
 
-  return annotations.map(a => ({
+  return annotations.map((a) => ({
     ...a,
-    dataPointRef: JSON.parse(a.dataPointRef),
+    dataPointRef: JSON.parse(a.dataPointRef) as Record<string, unknown>,
   }));
 }
 
-export async function deleteAnnotation(
-  annotationId: string,
-  userId: string,
-) {
+export async function deleteAnnotation(annotationId: string, userId: string): Promise<void> {
   const annotation = await prisma.annotation.findUniqueOrThrow({
     where: { id: annotationId },
   });
@@ -171,10 +181,10 @@ async function notifyMentionedUsers(
   });
 
   for (const user of mentionedUsers) {
-    console.log(
+    logger.info(
       `[Mention] ${author?.firstName} ${author?.lastName} mentioned ${user.firstName} ` +
-      `in comment: "${commentContent.slice(0, 100)}..." ` +
-      `(dashboard: ${dashboardId ?? 'N/A'})`,
+        `in comment: "${commentContent.slice(0, 100)}..." ` +
+        `(dashboard: ${dashboardId ?? 'N/A'})`,
     );
   }
 }

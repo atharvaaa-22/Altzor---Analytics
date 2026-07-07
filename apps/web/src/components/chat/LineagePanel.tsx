@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState } from 'react';
 
 interface LineagePanelProps {
@@ -11,7 +12,7 @@ interface LineagePanelProps {
   };
 }
 
-export function LineagePanel({ lineage }: LineagePanelProps) {
+export function LineagePanel({ lineage }: LineagePanelProps): React.JSX.Element {
   const [open, setOpen] = useState(false);
 
   return (
@@ -42,7 +43,8 @@ export function LineagePanel({ lineage }: LineagePanelProps) {
             </div>
           )}
           <div className="lineage-section">
-            <strong>Rows:</strong> {lineage.rowsScanned ?? '?'} scanned → {lineage.rowsReturned ?? '?'} returned
+            <strong>Rows:</strong> {lineage.rowsScanned ?? '?'} scanned →{' '}
+            {lineage.rowsReturned ?? '?'} returned
           </div>
         </div>
       )}

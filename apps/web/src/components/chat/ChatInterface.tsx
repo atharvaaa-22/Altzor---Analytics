@@ -1,3 +1,4 @@
+import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useSSEQuery } from '../../hooks/useSSEQuery';
 import { SqlDisplay } from './SqlDisplay';
@@ -13,7 +14,10 @@ interface ChatInterfaceProps {
   connectionId: string;
 }
 
-export function ChatInterface({ conversationId, connectionId }: ChatInterfaceProps) {
+export function ChatInterface({
+  conversationId,
+  connectionId,
+}: ChatInterfaceProps): React.JSX.Element {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const { state, isStreaming, sendQuestion } = useSSEQuery();
@@ -24,7 +28,7 @@ export function ChatInterface({ conversationId, connectionId }: ChatInterfacePro
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, state]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (!input.trim() || isStreaming) return;
 
@@ -66,9 +70,7 @@ export function ChatInterface({ conversationId, connectionId }: ChatInterfacePro
               <div className="user-message">{msg.content}</div>
             ) : (
               <div className="assistant-message">
-                {msg.confidence != null && (
-                  <ConfidenceBadge score={msg.confidence} />
-                )}
+                {msg.confidence != null && <ConfidenceBadge score={msg.confidence} />}
 
                 {msg.sql && <SqlDisplay sql={msg.sql} />}
 
@@ -89,10 +91,7 @@ export function ChatInterface({ conversationId, connectionId }: ChatInterfacePro
                 )}
 
                 {msg.results && msg.columns && (
-                  <ResultsTable
-                    data={msg.results}
-                    columns={msg.columns}
-                  />
+                  <ResultsTable data={msg.results} columns={msg.columns} />
                 )}
 
                 {msg.narrative && <NarrativeCard narrative={msg.narrative} />}
@@ -100,10 +99,7 @@ export function ChatInterface({ conversationId, connectionId }: ChatInterfacePro
                 {msg.lineage && <LineagePanel lineage={msg.lineage} />}
 
                 {msg.messageId && (
-                  <FeedbackButtons
-                    conversationId={conversationId}
-                    messageId={msg.messageId}
-                  />
+                  <FeedbackButtons conversationId={conversationId} messageId={msg.messageId} />
                 )}
               </div>
             )}

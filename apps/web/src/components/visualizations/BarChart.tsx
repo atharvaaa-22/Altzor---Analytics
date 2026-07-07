@@ -54,13 +54,17 @@ export function BarChart({
           fontSize={12}
           tickLine={false}
           axisLine={false}
-          tickFormatter={(value: string | number) => formatValue(value, valueFormat)}
+          tickFormatter={(value: string | number): string =>
+            String(formatValue(value, valueFormat))
+          }
         />
 
         <Tooltip
           content={
             <CustomTooltip
-              formatter={(value: string | number) => formatValue(value, valueFormat)}
+              formatter={(value: unknown): React.ReactNode =>
+                String(formatValue(value as string | number, valueFormat))
+              }
             />
           }
           cursor={{ fill: '#1e293b' }}

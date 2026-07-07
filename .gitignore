@@ -31,3 +31,14 @@ playwright-report/
 
 # Prisma
 prisma/*.db
+
+apps/api/prisma/dev.db
+
+
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+apps/api/prisma/dev.db-shm
+apps/api/prisma/dev.db-walapps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+apps/api/prisma/dev.db-wal
+apps/api/prisma/dev.db-shm

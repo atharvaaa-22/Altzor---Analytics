@@ -1,4 +1,4 @@
-
+import type React from 'react';
 
 interface NarrativeCardProps {
   narrative: {
@@ -8,7 +8,7 @@ interface NarrativeCardProps {
   };
 }
 
-export function NarrativeCard({ narrative }: NarrativeCardProps) {
+export function NarrativeCard({ narrative }: NarrativeCardProps): React.JSX.Element {
   return (
     <div className="narrative-card">
       <div className="narrative-icon">💡</div>

@@ -85,12 +85,15 @@ export function createPostgresConnector(config: ConnectorConfig): DbConnector {
 
         const tables: SchemaTable[] = [];
 
-        for (const row of tablesResult.rows) {
-          const tableName = row.table_name as string;
-          const schemaName = row.table_schema as string;
+        const rows = tablesResult.rows as { table_name: string; table_schema: string }[];
+
+        for (const row of rows) {
+          const tableName = row.table_name;
+          const schemaName = row.table_schema;
           const fqn = `"${schemaName}"."${tableName}"`;
 
-          const colsResult = await client.query(`
+          const colsResult = await client.query(
+            `
             SELECT c.column_name, c.data_type, c.is_nullable,
                    CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_pk
             FROM information_schema.columns c
@@ -104,16 +107,25 @@ export function createPostgresConnector(config: ConnectorConfig): DbConnector {
             ) pk ON c.column_name = pk.column_name
             WHERE c.table_name = $1 AND c.table_schema = $2
             ORDER BY c.ordinal_position
-          `, [tableName, schemaName]);
+          `,
+            [tableName, schemaName],
+          );
 
           const countResult = await client.query(
             `SELECT reltuples::bigint AS count FROM pg_class WHERE relname = $1`,
             [tableName],
           );
-          const rowCount = Number(countResult.rows[0]?.count ?? 0);
+          const countRow = countResult.rows[0] as { count?: string | number } | undefined;
+          const rowCount = Number(countRow?.count ?? 0);
 
           const columns: SchemaColumn[] = [];
-          for (const col of colsResult.rows) {
+          const colRows = colsResult.rows as {
+            column_name: string;
+            data_type: string;
+            is_pk: boolean;
+            is_nullable: string;
+          }[];
+          for (const col of colRows) {
             let sampleValues: string[] = [];
             try {
               const sampleResult = await client.query(
@@ -122,14 +134,16 @@ export function createPostgresConnector(config: ConnectorConfig): DbConnector {
                  WHERE "${col.column_name}" IS NOT NULL
                  LIMIT 5`,
               );
-              sampleValues = sampleResult.rows.map((r) => String(r.val));
-            } catch {
+              const sampleRows = sampleResult.rows as { val: unknown }[];
+              sampleValues = sampleRows.map((r) => String(r.val));
+            } catch (err) {
+              // Ignore sample errors
             }
 
             columns.push({
-              name: col.column_name as string,
-              dataType: col.data_type as string,
-              isPrimaryKey: col.is_pk as boolean,
+              name: col.column_name,
+              dataType: col.data_type,
+              isPrimaryKey: col.is_pk,
               isForeignKey: false,
               nullable: col.is_nullable === 'YES',
               sampleValues,

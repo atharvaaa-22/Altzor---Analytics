@@ -12,21 +12,17 @@ interface UploadStore {
 
 export const useUploadStore = create<UploadStore>((set) => ({
   queue: [],
-  addTask: (task) => set((state) => ({ queue: [...state.queue, task] })),
-  updateTaskProgress: (id, progress) =>
+  addTask: (task): void => set((state) => ({ queue: [...state.queue, task] })),
+  updateTaskProgress: (id, progress): void =>
     set((state) => ({
-      queue: state.queue.map((task) =>
-        task.id === id ? { ...task, progress } : task
-      ),
+      queue: state.queue.map((task) => (task.id === id ? { ...task, progress } : task)),
     })),
-  updateTaskStatus: (id, status, error) =>
+  updateTaskStatus: (id, status, error): void =>
     set((state) => ({
-      queue: state.queue.map((task) =>
-        task.id === id ? { ...task, status, error } : task
-      ),
+      queue: state.queue.map((task) => (task.id === id ? { ...task, status, error } : task)),
     })),
-  removeTask: (id) =>
+  removeTask: (id): void =>
     set((state) => ({ queue: state.queue.filter((task) => task.id !== id) })),
-  clearCompleted: () =>
+  clearCompleted: (): void =>
     set((state) => ({ queue: state.queue.filter((task) => task.status !== 'completed') })),
 }));

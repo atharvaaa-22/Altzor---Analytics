@@ -1,7 +1,29 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { organizationApi } from '../api';
+import type { OrgUser, ApiKey, AuditLog, UserRole } from '../types';
 
-export function useOrganization() {
+export function useOrganization(): {
+  users: OrgUser[];
+  isLoadingUsers: boolean;
+  inviteUser: UseMutationResult<
+    { success: boolean },
+    Error,
+    { email: string; role: UserRole },
+    unknown
+  >;
+  removeUser: UseMutationResult<unknown, Error, string, unknown>;
+  apiKeys: ApiKey[];
+  isLoadingKeys: boolean;
+  generateApiKey: UseMutationResult<{ key: string } & ApiKey, Error, { name: string }, unknown>;
+  revokeApiKey: UseMutationResult<unknown, Error, string, unknown>;
+  auditLogs: AuditLog[];
+  isLoadingLogs: boolean;
+} {
   const queryClient = useQueryClient();
 
   const { data: users = [], isLoading: isLoadingUsers } = useQuery({
@@ -40,8 +62,15 @@ export function useOrganization() {
   });
 
   return {
-    users, isLoadingUsers, inviteUser, removeUser,
-    apiKeys, isLoadingKeys, generateApiKey, revokeApiKey,
-    auditLogs, isLoadingLogs,
+    users,
+    isLoadingUsers,
+    inviteUser,
+    removeUser,
+    apiKeys,
+    isLoadingKeys,
+    generateApiKey,
+    revokeApiKey,
+    auditLogs,
+    isLoadingLogs,
   };
 }

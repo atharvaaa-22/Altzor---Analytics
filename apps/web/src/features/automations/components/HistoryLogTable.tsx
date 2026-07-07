@@ -1,9 +1,16 @@
+import type React from 'react';
 import { CheckCircle2, XCircle, Clock, FileText, Bell } from 'lucide-react';
 import type { AutomationLog } from '../types';
 import { clsx } from 'clsx';
 import { formatDistanceToNow } from 'date-fns';
 
-export function HistoryLogTable({ logs, isLoading }: { logs: AutomationLog[]; isLoading?: boolean }) {
+export function HistoryLogTable({
+  logs,
+  isLoading,
+}: {
+  logs: AutomationLog[];
+  isLoading?: boolean;
+}): React.JSX.Element {
   if (isLoading) {
     return <div className="p-8 text-center text-slate-500">Loading history logs...</div>;
   }
@@ -42,14 +49,19 @@ export function HistoryLogTable({ logs, isLoading }: { logs: AutomationLog[]; is
                 </div>
               </td>
               <td className="px-6 py-4">
-                <div className={clsx("inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border", log.status === 'SUCCESS' ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20")}>
+                <div
+                  className={clsx(
+                    'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border',
+                    log.status === 'SUCCESS'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+                  )}
+                >
                   {log.status === 'SUCCESS' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
                   {log.status}
                 </div>
               </td>
-              <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                {log.targetId}
-              </td>
+              <td className="px-6 py-4 font-mono text-xs text-slate-400">{log.targetId}</td>
               <td className="px-6 py-4">
                 <div className="flex items-center gap-2 text-slate-400">
                   <Clock size={14} />

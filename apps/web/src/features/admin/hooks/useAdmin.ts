@@ -1,7 +1,20 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseMutationResult,
+} from '@tanstack/react-query';
 import { adminApi } from '../api';
+import type { SystemHealth, QueueStats } from '../types';
 
-export function useAdmin() {
+export function useAdmin(): {
+  health: SystemHealth | undefined;
+  isLoadingHealth: boolean;
+  queues: QueueStats[];
+  isLoadingQueues: boolean;
+  pauseQueue: UseMutationResult<unknown, Error, string, unknown>;
+  resumeQueue: UseMutationResult<unknown, Error, string, unknown>;
+} {
   const queryClient = useQueryClient();
 
   const { data: health, isLoading: isLoadingHealth } = useQuery({
@@ -18,17 +31,24 @@ export function useAdmin() {
 
   const pauseQueue = useMutation({
     mutationFn: adminApi.pauseQueue,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['system-queues'] }),
+    onSuccess: (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['system-queues'] });
+    },
   });
 
   const resumeQueue = useMutation({
     mutationFn: adminApi.resumeQueue,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['system-queues'] }),
+    onSuccess: (): void => {
+      void queryClient.invalidateQueries({ queryKey: ['system-queues'] });
+    },
   });
 
   return {
-    health, isLoadingHealth,
-    queues, isLoadingQueues,
-    pauseQueue, resumeQueue,
+    health,
+    isLoadingHealth,
+    queues,
+    isLoadingQueues,
+    pauseQueue,
+    resumeQueue,
   };
 }

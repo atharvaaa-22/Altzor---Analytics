@@ -1,12 +1,21 @@
+import type React from 'react';
 import { FileCode } from 'lucide-react';
 import type { SavedQuery } from '../types';
 
-export function SavedQueriesSidebar({ queries, onSelect }: { queries: SavedQuery[]; onSelect: (q: SavedQuery) => void }) {
+export function SavedQueriesSidebar({
+  queries,
+  onSelect,
+}: {
+  queries: SavedQuery[];
+  onSelect: (q: SavedQuery) => void;
+}): React.JSX.Element {
   return (
     <div className="w-64 h-full border-r border-slate-800 bg-slate-900/50 overflow-y-auto shrink-0 flex flex-col p-4">
-      <h3 className="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">Saved Queries</h3>
+      <h3 className="text-sm font-semibold text-slate-400 mb-4 uppercase tracking-wider">
+        Saved Queries
+      </h3>
       <div className="space-y-1">
-        {queries.map(q => (
+        {queries.map((q) => (
           <button
             key={q.id}
             onClick={() => onSelect(q)}

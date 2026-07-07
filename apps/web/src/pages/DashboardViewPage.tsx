@@ -1,42 +1,54 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Edit2, Check, Plus } from 'lucide-react';
+import type React from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, Edit2, Check, Plus, RefreshCw, Share2 } from 'lucide-react';
 import { DashboardGrid, useDashboardStore } from '../features/dashboards';
+import { Button } from '../components/ui/Button';
 
-export function DashboardViewPage() {
-  const { id } = useParams();
+export function DashboardViewPage(): React.JSX.Element {
   const { isEditing, setEditing } = useDashboardStore();
 
   return (
-    <div className="h-full flex flex-col p-8 max-w-[1600px] mx-auto w-full">
-      <div className="flex justify-between items-center mb-8">
-        <div className="flex items-center gap-4">
-          <Link to="/dashboards" className="p-2 bg-slate-900 border border-slate-800 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
-            <ArrowLeft size={18} />
+    <div className="h-full flex flex-col bg-slate-50">
+      {/* Top bar */}
+      <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/dashboards"
+            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+          >
+            <ArrowLeft size={17} />
           </Link>
           <div>
-            <h1 className="text-3xl font-bold text-white mb-1">Executive Overview</h1>
-            <p className="text-sm text-slate-400">Last refreshed 2 hours ago</p>
+            <h1 className="text-base font-semibold text-slate-900">Executive Overview</h1>
+            <p className="text-xs text-slate-400">Last refreshed 2 hours ago</p>
           </div>
         </div>
-        
-        <div className="flex gap-3">
+
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />}>
+            Refresh
+          </Button>
+          <Button variant="secondary" size="sm" icon={<Share2 size={14} />}>
+            Share
+          </Button>
           {isEditing && (
-            <button className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-slate-700">
-              <Plus size={18} /> Add Widget
-            </button>
+            <Button variant="secondary" size="sm" icon={<Plus size={14} />}>
+              Add Widget
+            </Button>
           )}
-          <button 
-            onClick={() => setEditing(!isEditing)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors shadow-lg ${isEditing ? 'bg-emerald-500 text-white hover:bg-emerald-400 shadow-emerald-500/20' : 'bg-orange-500 hover:bg-orange-400 text-white shadow-orange-500/20'}`}
+          <Button
+            variant={isEditing ? 'primary' : 'secondary'}
+            size="sm"
+            icon={isEditing ? <Check size={14} /> : <Edit2 size={14} />}
+            onClick={(): void => setEditing(!isEditing)}
           >
-            {isEditing ? <Check size={18} /> : <Edit2 size={18} />}
-            {isEditing ? 'Save Layout' : 'Edit Dashboard'}
-          </button>
+            {isEditing ? 'Save Layout' : 'Edit'}
+          </Button>
         </div>
       </div>
 
-      <div className="flex-1 -mx-6">
+      {/* Dashboard content */}
+      <div className="flex-1 overflow-auto p-6">
         <DashboardGrid />
       </div>
     </div>

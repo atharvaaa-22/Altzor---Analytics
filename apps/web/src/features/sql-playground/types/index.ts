@@ -1,6 +1,6 @@
 export interface QueryResult {
   columns: string[];
-  rows: Record<string, any>[];
+  rows: Record<string, unknown>[];
   durationMs?: number;
 }
 

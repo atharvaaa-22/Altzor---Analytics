@@ -1,12 +1,23 @@
+import type React from 'react';
 import { useState, useCallback } from 'react';
-// @ts-expect-error Types for WidthProvider are sometimes mismatched
-import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
+import { Responsive, type Layout } from 'react-grid-layout';
+// @ts-expect-error - WidthProvider missing from types but exported at runtime
+import { WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { DashboardWidget } from './DashboardWidget';
 import { DashboardFilters } from './DashboardFilters';
 
-const ResponsiveGrid = WidthProvider(Responsive);
+type ResponsiveGridProps = Omit<React.ComponentProps<typeof Responsive>, 'width'> & {
+  width?: number;
+  isDraggable?: boolean;
+  isResizable?: boolean;
+  compactType?: string;
+  onLayoutChange?: (layout: unknown, layouts?: unknown) => void;
+};
+const ResponsiveGrid = (
+  WidthProvider as unknown as (c: typeof Responsive) => React.ComponentType<ResponsiveGridProps>
+)(Responsive);
 
 interface Widget {
   id: string;
@@ -41,7 +52,7 @@ export function DashboardGrid({
   onFilterChange,
   onRefreshWidget,
   onAddWidget,
-}: DashboardGridProps) {
+}: DashboardGridProps): React.JSX.Element {
   const [crossFilter, setCrossFilter] = useState<Record<string, unknown> | null>(null);
 
   const layouts = {
@@ -57,7 +68,7 @@ export function DashboardGrid({
   };
 
   const handleCrossFilter = useCallback(
-    (widgetId: string, filterData: Record<string, unknown>) => {
+    (widgetId: string, filterData: Record<string, unknown>): void => {
       setCrossFilter({ sourceWidgetId: widgetId, ...filterData });
     },
     [],
@@ -65,10 +76,7 @@ export function DashboardGrid({
 
   return (
     <div className="dashboard-container">
-      <DashboardFilters
-        filters={filters}
-        onChange={onFilterChange}
-      />
+      <DashboardFilters filters={filters} onChange={onFilterChange} />
 
       {isEditable && (
         <button className="add-widget-btn" onClick={onAddWidget}>
@@ -84,7 +92,7 @@ export function DashboardGrid({
         rowHeight={100}
         isDraggable={isEditable}
         isResizable={isEditable}
-        onLayoutChange={(layout: Layout[]) => onLayoutChange(layout)}
+        onLayoutChange={(layout: unknown): void => onLayoutChange(layout as Layout[])}
         compactType="vertical"
         margin={[16, 16]}
       >
@@ -95,8 +103,10 @@ export function DashboardGrid({
               dashboardFilters={filters}
               crossFilter={crossFilter}
               isEditable={isEditable}
-              onRefresh={() => onRefreshWidget(widget.id)}
-              onCrossFilter={(data) => handleCrossFilter(widget.id, data)}
+              onRefresh={(): void => onRefreshWidget(widget.id)}
+              onCrossFilter={(data: Record<string, unknown>): void =>
+                handleCrossFilter(widget.id, data)
+              }
             />
           </div>
         ))}
