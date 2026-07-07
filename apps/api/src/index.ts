@@ -100,7 +100,7 @@ const server = app.listen(env.PORT, () => {
   logger.info(`🚀 API server running on port ${env.PORT}`);
   logger.info(`   Environment: ${env.NODE_ENV}`);
   
-  startWorkers();
+  void startWorkers();
 });
 
 const gracefulShutdown = (signal: string): void => {

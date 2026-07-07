@@ -10,6 +10,7 @@ const DIALECT_INSTRUCTIONS: Record<ConnectionType, string> = {
   SNOWFLAKE: `Generate Snowflake SQL. Use double quotes for case-sensitive identifiers. Use Snowflake-specific functions like FLATTEN, PARSE_JSON, TRY_CAST. Use DATE_TRUNC for date operations.`,
   BIGQUERY: `Generate Google BigQuery SQL (Standard SQL). Use backtick-quoted project.dataset.table format. Use TIMESTAMP_TRUNC, DATE_TRUNC. Use UNNEST for arrays. Use SAFE_CAST for safe type conversion.`,
   MONGODB: `Generate a MongoDB aggregation pipeline as a JSON array. Use $match, $group, $sort, $project, $limit stages. Return valid JSON that can be parsed with JSON.parse().`,
+  SQLITE: `Generate SQLite-compatible SQL. Use double quotes for identifiers. Use strftime() or date() for date and time grouping/manipulation. SQLite does not support DATE_TRUNC or complex PostgreSQL casting.`,
 };
 
 export function buildSystemPrompt(

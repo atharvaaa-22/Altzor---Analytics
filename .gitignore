@@ -29,16 +29,15 @@ logs/
 coverage/
 playwright-report/
 
-# Prisma
-prisma/*.db
-
+# Prisma SQLite database files
 apps/api/prisma/dev.db
-
-
-apps/api/prisma/dev.db
-apps/api/prisma/dev.db-journal
-apps/api/prisma/dev.db-shm
-apps/api/prisma/dev.db-walapps/api/prisma/dev.db
 apps/api/prisma/dev.db-journal
 apps/api/prisma/dev.db-wal
 apps/api/prisma/dev.db-shm
+prisma/*.db
+
+# Locally uploaded files (stored at runtime, not source code)
+apps/api/uploads/
+
+# Scratch / debug scripts in api root
+apps/api/*.js

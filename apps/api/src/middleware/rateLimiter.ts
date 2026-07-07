@@ -6,7 +6,7 @@ export const loginLimiter = rateLimit({
   message: { error: 'Too many login attempts. Please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false },
+  validate: false,
   keyGenerator: (req) => req.ip ?? 'unknown',
 });
 
@@ -16,7 +16,7 @@ export const apiLimiter = rateLimit({
   message: { error: 'Rate limit exceeded. Please slow down.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false },
+  validate: false,
   keyGenerator: (req) => req.user?.userId ?? req.ip ?? 'unknown',
 });
 
@@ -26,6 +26,6 @@ export const queryLimiter = rateLimit({
   message: { error: 'Query rate limit exceeded. Please wait.' },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { ip: false },
+  validate: false,
   keyGenerator: (req) => req.user?.userId ?? req.ip ?? 'unknown',
 });

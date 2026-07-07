@@ -90,11 +90,25 @@ router.get('/', async (req: Request, res: Response) => {
     },
   });
 
-  const serialized = files.map((f) => ({
-    ...f,
-    sizeBytes: f.sizeBytes.toString(),
-    columnSchema: f.columnSchema ? (JSON.parse(f.columnSchema) as unknown) : null,
-  }));
+  const serialized = files.map((f) => {
+    // If the file is tabular, check if ephemeralTable exists. If not tabular, check rowCount.
+    const isTabular = ['CSV', 'XLSX', 'XLS', 'JSON'].includes(f.format);
+    const isReady = isTabular ? !!f.ephemeralTable : f.rowCount !== null;
+    const status = isReady ? 'ready' : 'failed';
+
+    return {
+      id: f.id,
+      name: f.originalName,
+      size: Number(f.sizeBytes),
+      type: f.format,
+      rowCount: f.rowCount ?? undefined,
+      tableName: f.ephemeralTable ?? undefined,
+      createdAt: f.createdAt.toISOString(),
+      status,
+      columnSchema: f.columnSchema ? (JSON.parse(f.columnSchema) as unknown) : null,
+      user: f.user,
+    };
+  });
 
   res.json(serialized);
 });

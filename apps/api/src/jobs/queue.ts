@@ -14,13 +14,61 @@ const connection: ConnectionOptions = {
       : undefined,
   tls: redisUrl.protocol === 'rediss:' ? {} : undefined,
   maxRetriesPerRequest: null,
+  // Stop reconnecting immediately if Redis is down
+  enableOfflineQueue: false,
 };
 
-export const schemaSyncQueue = new Queue('schema-sync', { connection });
-export const reportDeliveryQueue = new Queue('report-delivery', { connection });
-export const alertQueue = new Queue('alerts', { connection });
+// Lazily created queues — only available when Redis is running
+let schemaSyncQueue: Queue | null = null;
+let reportDeliveryQueue: Queue | null = null;
+let alertQueue: Queue | null = null;
 
-export function startWorkers(): void {
+export { schemaSyncQueue, reportDeliveryQueue, alertQueue };
+
+export async function startWorkers(): Promise<void> {
+  // Test if Redis is actually reachable before starting BullMQ workers
+  await import('redis').catch(() => null);
+  
+  // Simple TCP check using ioredis
+  try {
+    const { Redis } = await import('ioredis');
+    const testClient = new Redis({
+      host: redisUrl.hostname,
+      port: redisUrl.port ? Number(redisUrl.port) : 6379,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (): null => null,
+      connectTimeout: 2000,
+      lazyConnect: false,
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        testClient.disconnect();
+        reject(new Error('timeout'));
+      }, 2500);
+
+      testClient.once('connect', () => {
+        clearTimeout(timeout);
+        testClient.disconnect();
+        resolve();
+      });
+
+      testClient.once('error', (err) => {
+        clearTimeout(timeout);
+        testClient.disconnect();
+        reject(err);
+      });
+    });
+  } catch {
+    logger.warn('[BullMQ] Redis not available — background job workers are disabled. Core API features remain fully functional.');
+    return;
+  }
+
+  // Redis is available — create queues and start workers
+  schemaSyncQueue = new Queue('schema-sync', { connection });
+  reportDeliveryQueue = new Queue('report-delivery', { connection });
+  alertQueue = new Queue('alerts', { connection });
+
   new Worker(
     'schema-sync',
     async (job) => {

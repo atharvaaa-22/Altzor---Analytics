@@ -9,9 +9,15 @@ const router = Router();
 router.use(authMiddleware);
 
 router.post('/', async (req: Request, res: Response) => {
-  const { connectionId } = z.object({
+  const { connectionId: rawConnectionId } = z.object({
     connectionId: z.string().optional(),
   }).parse(req.body);
+
+  // 'default' and 'local' are virtual SQLite connections — not real DB records.
+  // Store null so the FK to DatabaseConnection is satisfied.
+  const connectionId = (rawConnectionId === 'default' || rawConnectionId === 'local')
+    ? undefined
+    : rawConnectionId;
 
   const conversation = await prisma.conversation.create({
     data: {
@@ -70,7 +76,10 @@ router.post('/:id/messages', queryLimiter, async (req: Request<{ id: string }>, 
     res.setHeader('X-Accel-Buffering', 'no');
 
     const sendEvent = (event: string, data: unknown): void => {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      const payload = JSON.stringify(data, (_key, val: unknown) =>
+        typeof val === 'bigint' ? Number(val) : val
+      );
+      res.write(`event: ${event}\ndata: ${payload}\n\n`);
     };
 
     sendEvent('status', { stage: 'fetching_schema', message: 'Loading database schema...' });

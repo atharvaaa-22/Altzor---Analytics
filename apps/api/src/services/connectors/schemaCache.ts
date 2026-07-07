@@ -9,9 +9,13 @@ const MAX_TABLES_PER_CHUNK = 100;
 export async function getSchemaMetadata(connectionId: string): Promise<SchemaMetadata> {
   const cacheKey = `${SCHEMA_KEY_PREFIX}${connectionId}`;
 
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    return JSON.parse(cached) as SchemaMetadata;
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached) as SchemaMetadata;
+    }
+  } catch {
+    // Redis unavailable — skip cache read
   }
 
   const connector = await getConnector(connectionId);
@@ -21,17 +25,25 @@ export async function getSchemaMetadata(connectionId: string): Promise<SchemaMet
     tables,
     discoveredAt: new Date().toISOString(),
     connectionId,
-    dialect: 'POSTGRESQL',
+    dialect: connectionId === 'default' || connectionId === 'local' ? 'SQLITE' : 'POSTGRESQL',
   };
 
-  await redis.setex(cacheKey, SCHEMA_TTL, JSON.stringify(metadata));
+  try {
+    await redis.setex(cacheKey, SCHEMA_TTL, JSON.stringify(metadata));
+  } catch {
+    // Redis unavailable — skip cache write
+  }
 
   return metadata;
 }
 
 export async function refreshSchemaCache(connectionId: string): Promise<SchemaMetadata> {
   const cacheKey = `${SCHEMA_KEY_PREFIX}${connectionId}`;
-  await redis.del(cacheKey);
+  try {
+    await redis.del(cacheKey);
+  } catch {
+    // Redis unavailable
+  }
   return getSchemaMetadata(connectionId);
 }
 

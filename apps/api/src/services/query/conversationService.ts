@@ -8,6 +8,13 @@ import { executeQuery, type ExecutionResult } from './queryExecutor.js';
 import { generateNarrative, type NarrativeSummary } from '../ai/narrativeGenerator.js';
 import { detectChartType } from '../ai/chartDetector.js';
 
+/** Safely JSON-stringify values that may contain BigInt (from SQLite raw queries). */
+function safeBigIntStringify(value: unknown): string {
+  return JSON.stringify(value, (_key: string, val: unknown): unknown =>
+    typeof val === 'bigint' ? Number(val) : val
+  );
+}
+
 
 export interface ConversationResponse {
   messageId: string;
@@ -41,13 +48,19 @@ export async function processQuestion(
   userId: string,
   orgId: string,
 ): Promise<ConversationResponse> {
+  // 'default' and 'local' are virtual SQLite connection IDs — not real DB records.
+  // Use undefined so Prisma's optional FK to DatabaseConnection stays null.
+  const dbConnectionId = (connectionId === 'default' || connectionId === 'local')
+    ? undefined
+    : connectionId;
+
   await prisma.message.create({
     data: {
       conversationId,
       userId,
       role: 'user',
       content: question,
-      connectionId,
+      connectionId: dbConnectionId,
     },
   });
 
@@ -76,6 +89,7 @@ export async function processQuestion(
     const errorMsg = await prisma.message.create({
       data: {
         conversationId,
+        connectionId: dbConnectionId,
         role: 'assistant',
         content: `I couldn't generate a valid query. ${validation.errors.join('. ')}`,
         aiModel: aiResponse.model,
@@ -106,6 +120,7 @@ export async function processQuestion(
     const errorMsg = await prisma.message.create({
       data: {
         conversationId,
+        connectionId: dbConnectionId,
         role: 'assistant',
         content: `Query execution failed: ${(execError as Error).message}`,
         generatedSql: validation.sanitizedSql,
@@ -144,7 +159,7 @@ export async function processQuestion(
       role: 'assistant',
       content: parsed.explanation || narrative.summary,
       generatedSql: validation.sanitizedSql,
-      queryResults: JSON.stringify(execResult.rows.slice(0, 500)),
+      queryResults: safeBigIntStringify(execResult.rows.slice(0, 500)),
       resultMetadata: JSON.stringify({
         rowCount: execResult.rowCount,
         executionTimeMs: execResult.executionTimeMs,
@@ -156,7 +171,7 @@ export async function processQuestion(
       narrativeSummary: narrative.summary,
       confidenceScore: narrative.confidence,
       lineage: JSON.stringify(lineage),
-      connectionId,
+      connectionId: dbConnectionId,
       aiModel: aiResponse.model,
       executionTimeMs: execResult.executionTimeMs,
       rowCount: execResult.rowCount,

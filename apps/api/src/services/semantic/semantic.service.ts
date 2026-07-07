@@ -155,8 +155,13 @@ export interface SemanticLayer {
 
 export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
   const cacheKey = `${SEMANTIC_CACHE_PREFIX}${orgId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) return JSON.parse(cached) as SemanticLayer;
+
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached) as SemanticLayer;
+  } catch {
+    // Redis unavailable — skip cache read
+  }
 
   const [metrics, dimensions] = await Promise.all([
     prisma.semanticMetric.findMany({
@@ -191,7 +196,12 @@ export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
     })),
   };
 
-  await redis.setex(cacheKey, SEMANTIC_CACHE_TTL, JSON.stringify(layer));
+  try {
+    await redis.setex(cacheKey, SEMANTIC_CACHE_TTL, JSON.stringify(layer));
+  } catch {
+    // Redis unavailable — skip cache write
+  }
+
   return layer;
 }
 
@@ -228,5 +238,9 @@ export function formatSemanticForPrompt(layer: SemanticLayer): string {
 }
 
 async function invalidateSemanticCache(orgId: string): Promise<void> {
-  await redis.del(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
+  try {
+    await redis.del(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
+  } catch {
+    // Redis unavailable
+  }
 }
