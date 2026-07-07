@@ -1,10 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../../lib/api';
+import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 
-export const useDashboard = (dashboardId: string) => {
+export const useDashboard = (
+  dashboardId: string,
+): UseQueryResult<{ id: string; name: string }, Error> => {
   return useQuery({
     queryKey: ['dashboard', dashboardId],
-    queryFn: async () => {
+    queryFn: () => {
       // Normally calls api.get(`/dashboards/${dashboardId}`)
       return { id: dashboardId, name: 'Executive Overview' };
     },

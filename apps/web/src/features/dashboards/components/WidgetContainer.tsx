@@ -1,7 +1,17 @@
-import React from 'react';
+import type React from 'react';
 import { Widget, useDashboardStore } from '../stores/dashboardStore';
 import { MoreVertical, Trash2 } from 'lucide-react';
-import { LineChart, Line, BarChart, Bar, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
 
 const mockData = [
   { name: 'Jan', value: 400 },
@@ -10,11 +20,11 @@ const mockData = [
   { name: 'Apr', value: 800 },
 ];
 
-export const WidgetContainer = ({ widget }: { widget: Widget }) => {
+export const WidgetContainer = ({ widget }: { widget: Widget }): React.JSX.Element => {
   const { isEditing, removeWidget } = useDashboardStore();
 
-  const renderChart = () => {
-    switch(widget.type) {
+  const renderChart = (): React.JSX.Element => {
+    switch (widget.type) {
       case 'metric':
         return (
           <div className="flex flex-col items-center justify-center h-full">
@@ -27,10 +37,29 @@ export const WidgetContainer = ({ widget }: { widget: Widget }) => {
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={mockData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="name"
+                stroke="#94a3b8"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
               <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }} />
-              <Line type="monotone" dataKey="value" stroke="#ff6600" strokeWidth={3} dot={{ r: 4, fill: '#ff6600', strokeWidth: 2, stroke: '#0f172a' }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#0f172a',
+                  borderColor: '#334155',
+                  borderRadius: '8px',
+                  color: '#f8fafc',
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke="#ff6600"
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#ff6600', strokeWidth: 2, stroke: '#0f172a' }}
+              />
             </LineChart>
           </ResponsiveContainer>
         );
@@ -39,15 +68,33 @@ export const WidgetContainer = ({ widget }: { widget: Widget }) => {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={mockData}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="name"
+                stroke="#94a3b8"
+                fontSize={12}
+                tickLine={false}
+                axisLine={false}
+              />
               <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', color: '#f8fafc' }} cursor={{ fill: '#1e293b' }} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#0f172a',
+                  borderColor: '#334155',
+                  borderRadius: '8px',
+                  color: '#f8fafc',
+                }}
+                cursor={{ fill: '#1e293b' }}
+              />
               <Bar dataKey="value" fill="#ff6600" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
       default:
-        return <div className="text-slate-500 flex items-center justify-center h-full">Unsupported Widget</div>;
+        return (
+          <div className="text-slate-500 flex items-center justify-center h-full">
+            Unsupported Widget
+          </div>
+        );
     }
   };
 
@@ -56,8 +103,8 @@ export const WidgetContainer = ({ widget }: { widget: Widget }) => {
       <div className="px-4 py-3 border-b border-slate-800/50 flex justify-between items-center bg-slate-900/30">
         <h3 className="font-medium text-slate-200 text-sm truncate pr-2">{widget.title}</h3>
         {isEditing && (
-          <button 
-            onMouseDown={(e) => e.stopPropagation()} 
+          <button
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={() => removeWidget(widget.id)}
             className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded-md hover:bg-red-500/10 cursor-pointer"
           >
@@ -70,9 +117,7 @@ export const WidgetContainer = ({ widget }: { widget: Widget }) => {
           </button>
         )}
       </div>
-      <div className="flex-1 p-4 min-h-0">
-        {renderChart()}
-      </div>
+      <div className="flex-1 p-4 min-h-0">{renderChart()}</div>
     </div>
   );
 };
