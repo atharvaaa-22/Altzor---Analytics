@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import jwt, { type SignOptions } from 'jsonwebtoken';
 import crypto from 'crypto';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
@@ -8,7 +8,7 @@ export interface EmbedTokenPayload {
   resourceId: string;
   organizationId: string;
   permissions: string[];
-  expiresIn?: string;
+  expiresIn?: SignOptions['expiresIn'];
 }
 
 export interface EmbedConfig {
@@ -32,7 +32,7 @@ export function generateEmbedToken(payload: EmbedTokenPayload): string {
       embed: true,
     },
     env.JWT_SECRET,
-    { expiresIn: (payload.expiresIn ?? '24h') as any },
+    { expiresIn: payload.expiresIn ?? '24h' },
   );
 }
 
@@ -52,10 +52,7 @@ export function generateSignedUrl(
 ): string {
   const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
   const payload = `${resourceType}:${resourceId}:${orgId}:${expires}`;
-  const signature = crypto
-    .createHmac('sha256', env.JWT_SECRET)
-    .update(payload)
-    .digest('hex');
+  const signature = crypto.createHmac('sha256', env.JWT_SECRET).update(payload).digest('hex');
 
   return `/embed/${resourceType}/${resourceId}?expires=${expires}&sig=${signature}`;
 }

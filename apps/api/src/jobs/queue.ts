@@ -1,13 +1,24 @@
-import { Queue, Worker } from 'bullmq';
-import { Redis } from 'ioredis';
+import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
-const connection = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+const redisUrl = new URL(env.REDIS_URL);
+const connection: ConnectionOptions = {
+  host: redisUrl.hostname,
+  port: redisUrl.port ? Number(redisUrl.port) : 6379,
+  username: redisUrl.username || undefined,
+  password: redisUrl.password || undefined,
+  db:
+    redisUrl.pathname && redisUrl.pathname.length > 1
+      ? Number(redisUrl.pathname.slice(1))
+      : undefined,
+  tls: redisUrl.protocol === 'rediss:' ? {} : undefined,
+  maxRetriesPerRequest: null,
+};
 
-export const schemaSyncQueue = new Queue('schema-sync', { connection: connection as any });
-export const reportDeliveryQueue = new Queue('report-delivery', { connection: connection as any });
-export const alertQueue = new Queue('alerts', { connection: connection as any });
+export const schemaSyncQueue = new Queue('schema-sync', { connection });
+export const reportDeliveryQueue = new Queue('report-delivery', { connection });
+export const alertQueue = new Queue('alerts', { connection });
 
 export function startWorkers(): void {
   new Worker(
@@ -18,7 +29,7 @@ export function startWorkers(): void {
       const { refreshSchemaCache } = await import('../services/connectors/schemaCache.js');
       await refreshSchemaCache(connectionId);
     },
-    { connection: connection as any, concurrency: 3 },
+    { connection, concurrency: 3 },
   );
 
   new Worker(
@@ -28,7 +39,7 @@ export function startWorkers(): void {
       const { userId } = job.data as { userId: string };
       logger.info(`[Job] Delivering report to user: ${userId}`);
     },
-    { connection: connection as any, concurrency: 2 },
+    { connection, concurrency: 2 },
   );
 
   new Worker(
@@ -38,7 +49,7 @@ export function startWorkers(): void {
       const { type, threshold } = job.data as { type: string; threshold: number };
       logger.info(`[Job] Processing alert: ${type} (threshold: ${threshold})`);
     },
-    { connection: connection as any, concurrency: 5 },
+    { connection, concurrency: 5 },
   );
 
   logger.info('[BullMQ] All workers started');
