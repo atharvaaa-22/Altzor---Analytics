@@ -1,20 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { connectionsApi } from '../api';
-import type { ConnectionFormData, ConnectionType } from '../types';
+import type { Connection, ConnectionFormData, ConnectionType } from '../types';
 
-export function useConnections() {
+export interface UseConnectionsResult {
+  connections: Connection[];
+  isLoading: boolean;
+  error: Error | null;
+  createConnection: UseMutationResult<Connection, Error, ConnectionFormData, unknown>;
+  testConnection: UseMutationResult<
+    { success: boolean; message?: string },
+    Error,
+    { type: ConnectionType; config: Record<string, unknown> },
+    unknown
+  >;
+  deleteConnection: UseMutationResult<unknown, Error, string, unknown>;
+}
+
+export function useConnections(): UseConnectionsResult {
   const queryClient = useQueryClient();
   const queryKey = ['connections'];
 
-  const { data: connections = [], isLoading, error } = useQuery({
+  const {
+    data: connections = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey,
     queryFn: connectionsApi.getConnections,
   });
 
   const createConnection = useMutation({
     mutationFn: connectionsApi.createConnection,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+    onSuccess: async (): Promise<void> => {
+      await queryClient.invalidateQueries({ queryKey });
     },
   });
 
@@ -24,8 +43,8 @@ export function useConnections() {
 
   const deleteConnection = useMutation({
     mutationFn: connectionsApi.deleteConnection,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+    onSuccess: async (): Promise<void> => {
+      await queryClient.invalidateQueries({ queryKey });
     },
   });
 
