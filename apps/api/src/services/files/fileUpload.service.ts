@@ -1,4 +1,3 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { parse as csvParse } from 'csv-parse/sync';
 import * as XLSX from 'xlsx';
 import { PDFParse } from 'pdf-parse';
@@ -6,17 +5,14 @@ import mammoth from 'mammoth';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
 import type { FileCategory } from '@platform/shared';
-import { getFileCategory, isQueryable, SUPPORTED_FILE_TYPES } from '@platform/shared';
+import { getFileCategory, isQueryable } from '@platform/shared';
+import path from 'path';
+import fs from 'fs/promises';
+import { fileURLToPath } from 'url';
 
-const s3 = new S3Client({
-  region: env.AWS_REGION,
-  credentials: env.AWS_ACCESS_KEY_ID
-    ? {
-        accessKeyId: env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
-      }
-    : undefined,
-});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOAD_ROOT = path.resolve(__dirname, '../../../uploads');
 
 interface InferredColumn {
   name: string;
@@ -31,25 +27,19 @@ interface ParsedFile {
   rowCount: number;
 }
 
-async function uploadToS3(buffer: Buffer, key: string, contentType: string): Promise<void> {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: env.S3_BUCKET,
-      Key: key,
-      Body: buffer,
-      ContentType: contentType,
-      ServerSideEncryption: 'AES256',
-    }),
-  );
+async function saveLocalFile(buffer: Buffer, relativePath: string): Promise<void> {
+  const fullPath = path.join(UPLOAD_ROOT, relativePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, buffer);
 }
 
-async function deleteFromS3(key: string): Promise<void> {
-  await s3.send(
-    new DeleteObjectCommand({
-      Bucket: env.S3_BUCKET,
-      Key: key,
-    }),
-  );
+async function deleteLocalFile(relativePath: string): Promise<void> {
+  const fullPath = path.join(UPLOAD_ROOT, relativePath);
+  try {
+    await fs.unlink(fullPath);
+  } catch (error) {
+    console.error(`[Local Storage] Failed to delete file at ${fullPath}:`, error);
+  }
 }
 
 export function parseFile(buffer: Buffer, format: string): ParsedFile {
@@ -90,6 +80,17 @@ export async function parseDocument(
   return { text, rowCount };
 }
 
+function toSafeKeys(records: Record<string, unknown>[]): Record<string, unknown>[] {
+  return records.map((row) => {
+    const safeRow: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(row)) {
+      const safeKey = key.replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase();
+      safeRow[safeKey] = val;
+    }
+    return safeRow;
+  });
+}
+
 function parseCsv(buffer: Buffer): ParsedFile {
   const content = buffer.toString('utf-8');
   const records: Record<string, string>[] = csvParse(content, {
@@ -108,7 +109,9 @@ function parseCsv(buffer: Buffer): ParsedFile {
     ),
   );
 
-  return { columns, rows: records, rowCount: records.length };
+  const safeRows = toSafeKeys(records);
+
+  return { columns, rows: safeRows, rowCount: records.length };
 }
 
 function parseXlsx(buffer: Buffer): ParsedFile {
@@ -117,18 +120,46 @@ function parseXlsx(buffer: Buffer): ParsedFile {
   if (!sheetName) throw new Error('Excel file has no sheets');
 
   const sheet = workbook.Sheets[sheetName]!;
-  const records: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
-  if (records.length === 0) throw new Error('Excel sheet is empty');
+  // Read as raw arrays first to detect the real header row
+  const rawRows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+  if (rawRows.length === 0) throw new Error('Excel sheet is empty');
 
-  const columns = Object.keys(records[0]!).map((name) =>
+  // Find the first row where at least 2 cells are non-null/non-empty strings
+  // This skips merged title rows that only populate cell A1
+  let headerRowIndex = 0;
+  for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+    const row = rawRows[i] as unknown[];
+    const nonEmpty = row.filter((c) => c !== null && c !== undefined && String(c).trim() !== '');
+    if (nonEmpty.length >= 2) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  // Re-parse starting from the detected header row
+  const records: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, {
+    defval: null,
+    range: headerRowIndex, // Start from the real header row
+  });
+
+  // Filter out rows that are completely empty
+  const filteredRecords = records.filter((row) =>
+    Object.values(row).some((v) => v !== null && v !== undefined && String(v).trim() !== ''),
+  );
+
+  if (filteredRecords.length === 0) throw new Error('Excel sheet has no data rows');
+
+  const columns = Object.keys(filteredRecords[0]!).map((name) =>
     inferColumn(
       name,
-      records.map((r) => String(r[name] ?? '')),
+      filteredRecords.map((r) => String(r[name] ?? '')),
     ),
   );
 
-  return { columns, rows: records, rowCount: records.length };
+  const safeRows = toSafeKeys(filteredRecords);
+
+  return { columns, rows: safeRows, rowCount: filteredRecords.length };
 }
 
 function parseJson(buffer: Buffer): ParsedFile {
@@ -149,7 +180,9 @@ function parseJson(buffer: Buffer): ParsedFile {
     ),
   );
 
-  return { columns, rows: records, rowCount: records.length };
+  const safeRows = toSafeKeys(records);
+
+  return { columns, rows: safeRows, rowCount: records.length };
 }
 
 function inferColumn(name: string, values: string[]): InferredColumn {
@@ -209,9 +242,13 @@ async function createEphemeralTable(
     )
   `);
 
-  const BATCH_SIZE = 500;
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
+  // SQLite has a parameter limit of 999 in a single prepared statement.
+  // To avoid "too many SQL variables" errors, we dynamically size our batches.
+  const maxParams = 999;
+  const batchSize = Math.max(1, Math.floor(maxParams / columns.length));
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
     const colNames = columns.map((c) => `"${c.name}"`).join(', ');
     const placeholders = batch.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ');
 
@@ -249,9 +286,8 @@ export async function processFileUpload(
   }
   const queryable = isQueryable(ext);
 
-  const s3Key = `uploads/${orgId}/${Date.now()}_${originalName}`;
-  const mimeType = SUPPORTED_FILE_TYPES[format]?.mimeTypes[0] ?? 'application/octet-stream';
-  await uploadToS3(buffer, s3Key, mimeType);
+  const localPath = `${orgId}/${Date.now()}_${originalName}`;
+  await saveLocalFile(buffer, localPath);
 
   let parsedColumns: InferredColumn[] | null = null;
   let parsedRowCount: number | null = null;
@@ -275,15 +311,15 @@ export async function processFileUpload(
     const parsedDoc = await parseDocument(buffer, format);
     parsedRowCount = parsedDoc.rowCount;
   }
-  // category === 'image': file is stored in S3 as-is; no parsing or table creation.
+  // category === 'image': file is stored locally; no parsing or table creation.
 
   const file = await prisma.uploadedFile.create({
     data: {
       originalName,
       format,
       sizeBytes: BigInt(buffer.length),
-      s3Key,
-      s3Bucket: env.S3_BUCKET,
+      s3Key: localPath,
+      s3Bucket: 'local',
       ephemeralTable: tableName,
       columnSchema: parsedColumns ? JSON.stringify(parsedColumns) : null,
       rowCount: parsedRowCount,
@@ -307,7 +343,7 @@ export async function deleteUploadedFile(fileId: string): Promise<void> {
     where: { id: fileId },
   });
 
-  await deleteFromS3(file.s3Key);
+  await deleteLocalFile(file.s3Key);
 
   if (file.ephemeralTable) {
     await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "${file.ephemeralTable}"`);

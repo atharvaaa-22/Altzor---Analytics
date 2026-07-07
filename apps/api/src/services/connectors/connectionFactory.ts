@@ -8,7 +8,7 @@ import { createBigQueryConnector } from './bigquery.connector.js';
 import { createMongoConnector } from './mongo.connector.js';
 
 export type ConnectionType =
-  'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB';
+  'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB' | 'SQLITE';
 
 export type { DbConnector };
 
@@ -58,6 +58,12 @@ export async function getConnector(connectionId: string): Promise<DbConnector> {
   if (cached) {
     cached.lastUsed = Date.now();
     return cached.connector;
+  }
+
+  if (connectionId === 'default' || connectionId === 'local') {
+    const sqliteConnector = createSqliteConnector();
+    poolCache.set(connectionId, { connector: sqliteConnector, lastUsed: Date.now() });
+    return sqliteConnector;
   }
 
   const conn = await prisma.databaseConnection.findUniqueOrThrow({
@@ -150,4 +156,114 @@ export async function testRawConnection(
   const isHealthy = await connector.testConnection();
   await connector.disconnect().catch(() => {});
   return isHealthy;
+}
+
+function sanitizeBigInt(value: unknown): unknown {
+  if (typeof value === 'bigint') return Number(value);
+  if (value !== null && typeof value === 'object') {
+    if (Array.isArray(value)) return value.map(sanitizeBigInt);
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitizeBigInt(v)]),
+    );
+  }
+  return value;
+}
+
+function createSqliteConnector(): DbConnector {
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async executeQuery(sql: string, _timeoutMs: number): Promise<any> {
+      const normalized = sql.trim().toUpperCase();
+      const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE'];
+      for (const keyword of forbidden) {
+        if (normalized.startsWith(keyword)) {
+          throw new Error(`Write operations are not allowed: ${keyword}`);
+        }
+      }
+
+      const start = Date.now();
+      const rawRows = await prisma.$queryRawUnsafe(sql);
+
+      // Prisma returns COUNT(*) and other aggregates as BigInt — convert to numbers
+      const rows = sanitizeBigInt(rawRows) as Record<string, unknown>[];
+
+      const columns =
+        rows.length > 0
+          ? Object.keys(rows[0]!).map((key) => ({
+              name: key,
+              dataType: typeof rows[0]![key] === 'number' ? 'INTEGER' : 'TEXT',
+            }))
+          : [];
+
+      return {
+        rows,
+        columns,
+        rowCount: rows.length,
+        executionTimeMs: Date.now() - start,
+      };
+    },
+
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
+    async discoverSchema(): Promise<SchemaTable[]> {
+      const tablesResult = await prisma.$queryRawUnsafe(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`,
+      );
+
+      const tables: SchemaTable[] = [];
+
+      for (const t of tablesResult) {
+        const tableName = t.name;
+
+        const infoResult = await prisma.$queryRawUnsafe(`PRAGMA table_info("${tableName}")`);
+
+        const columns: SchemaColumn[] = [];
+        for (const col of infoResult) {
+          let sampleValues: string[] = [];
+          try {
+            const sampleResult = await prisma.$queryRawUnsafe(
+              `SELECT DISTINCT "${col.name}" AS val FROM "${tableName}" WHERE "${col.name}" IS NOT NULL LIMIT 5`,
+            );
+            sampleValues = sampleResult.map((r) => String(r.val));
+          } catch {
+            // ignore
+          }
+
+          columns.push({
+            name: col.name,
+            dataType: col.type,
+            isPrimaryKey: col.pk > 0,
+            isForeignKey: false,
+            nullable: col.notnull === 0,
+            sampleValues,
+          });
+        }
+
+        const countResult = await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*) as count FROM "${tableName}"`,
+        );
+        const rowCount = countResult[0] ? Number(countResult[0].count) : 0;
+
+        tables.push({
+          name: tableName,
+          schema: 'main',
+          columns,
+          rowCount,
+          relationships: [],
+        });
+      }
+
+      return tables;
+    },
+
+    async testConnection(): Promise<boolean> {
+      try {
+        await prisma.$queryRawUnsafe('SELECT 1');
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    async disconnect(): Promise<void> {},
+  };
 }

@@ -7,8 +7,8 @@ const SEMANTIC_CACHE_TTL = 300; // 5 minutes
 export interface MetricInput {
   name: string;
   description?: string;
-  formula: string;       // SQL expression, e.g. "SUM(order_total)"
-  dataType: string;      // number, currency, percentage
+  formula: string; // SQL expression, e.g. "SUM(order_total)"
+  dataType: string; // number, currency, percentage
   formatPattern?: string; // e.g. "$#,##0.00"
 }
 
@@ -18,7 +18,7 @@ export interface DimensionInput {
   sourceTable: string;
   sourceColumn: string;
   dataType: string;
-  synonyms?: string[];   // Alternative names for NLP matching
+  synonyms?: string[]; // Alternative names for NLP matching
 }
 
 export async function createMetric(
@@ -155,8 +155,13 @@ export interface SemanticLayer {
 
 export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
   const cacheKey = `${SEMANTIC_CACHE_PREFIX}${orgId}`;
-  const cached = await redis.get(cacheKey);
-  if (cached) return JSON.parse(cached) as SemanticLayer;
+
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) return JSON.parse(cached) as SemanticLayer;
+  } catch {
+    // Redis unavailable — skip cache read
+  }
 
   const [metrics, dimensions] = await Promise.all([
     prisma.semanticMetric.findMany({
@@ -191,7 +196,12 @@ export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
     })),
   };
 
-  await redis.setex(cacheKey, SEMANTIC_CACHE_TTL, JSON.stringify(layer));
+  try {
+    await redis.setex(cacheKey, SEMANTIC_CACHE_TTL, JSON.stringify(layer));
+  } catch {
+    // Redis unavailable — skip cache write
+  }
+
   return layer;
 }
 
@@ -216,9 +226,7 @@ export function formatSemanticForPrompt(layer: SemanticLayer): string {
     prompt += '### Business Dimensions\n';
     prompt += 'Map these business terms to their actual table/column references:\n\n';
     for (const d of layer.dimensions) {
-      const synonymStr = d.synonyms.length > 0
-        ? ` (also known as: ${d.synonyms.join(', ')})`
-        : '';
+      const synonymStr = d.synonyms.length > 0 ? ` (also known as: ${d.synonyms.join(', ')})` : '';
       prompt += `- **${d.name}**${synonymStr}: ${d.sourceTable}.${d.sourceColumn} (${d.dataType})\n`;
       if (d.description) prompt += `  ${d.description}\n`;
     }
@@ -228,5 +236,9 @@ export function formatSemanticForPrompt(layer: SemanticLayer): string {
 }
 
 async function invalidateSemanticCache(orgId: string): Promise<void> {
-  await redis.del(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
+  try {
+    await redis.del(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
+  } catch {
+    // Redis unavailable
+  }
 }

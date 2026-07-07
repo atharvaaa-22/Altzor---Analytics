@@ -15,6 +15,7 @@ interface ActiveChatState {
   addMessage: (msg: Message) => void;
   setStreaming: (status: boolean) => void;
   updateLastMessage: (content: string) => void;
+  resetChat: () => void;
 }
 
 export const useActiveChatStore = create<ActiveChatState>((set) => ({
@@ -23,7 +24,8 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I am Altzor AI. Ask me anything about your data.',
+      content:
+        'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
     },
   ],
   isStreaming: false,
@@ -43,6 +45,19 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
         newMessages[newMessages.length - 1].content = content;
       }
       return { messages: newMessages };
+    });
+  },
+  resetChat: (): void => {
+    set({
+      conversationId: null,
+      messages: [
+        {
+          id: '1',
+          role: 'assistant',
+          content:
+            'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
+        },
+      ],
     });
   },
 }));

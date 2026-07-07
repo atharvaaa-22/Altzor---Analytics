@@ -30,10 +30,14 @@ export async function executeQuery(
 ): Promise<ExecutionResult> {
   const cacheKey = buildCacheKey(orgId, sql, connectionId);
 
-  const cached = await redis.get(cacheKey);
-  if (cached) {
-    const parsed = JSON.parse(cached) as ExecutionResult;
-    return { ...parsed, cached: true };
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached) as ExecutionResult;
+      return { ...parsed, cached: true };
+    }
+  } catch {
+    // Redis unavailable — skip cache read
   }
 
   const connector = await getConnector(connectionId);
@@ -53,9 +57,13 @@ export async function executeQuery(
     cacheKey,
   };
 
-  const serialized = JSON.stringify(executionResult);
-  if (serialized.length < 5 * 1024 * 1024) {
-    await redis.setex(cacheKey, RESULT_CACHE_TTL, serialized);
+  try {
+    const serialized = JSON.stringify(executionResult);
+    if (serialized.length < 5 * 1024 * 1024) {
+      await redis.setex(cacheKey, RESULT_CACHE_TTL, serialized);
+    }
+  } catch {
+    // Redis unavailable — skip cache write
   }
 
   return executionResult;
@@ -69,5 +77,9 @@ function estimateQueryCost(rowCount: number, executionTimeMs: number): number {
 }
 
 export async function invalidateQueryCache(cacheKey: string): Promise<void> {
-  await redis.del(cacheKey);
+  try {
+    await redis.del(cacheKey);
+  } catch {
+    // Redis unavailable
+  }
 }
