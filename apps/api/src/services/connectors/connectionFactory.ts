@@ -7,7 +7,8 @@ import { createSnowflakeConnector } from './snowflake.connector.js';
 import { createBigQueryConnector } from './bigquery.connector.js';
 import { createMongoConnector } from './mongo.connector.js';
 
-export type ConnectionType = 'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB';
+export type ConnectionType =
+  'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB';
 
 export type { DbConnector };
 
@@ -38,16 +39,19 @@ export interface SchemaMetadata {
 
 const poolCache = new Map<string, { connector: DbConnector; lastUsed: number }>();
 
-setInterval(() => {
-  const now = Date.now();
-  const IDLE_TIMEOUT = 5 * 60 * 1000;
-  for (const [key, entry] of poolCache) {
-    if (now - entry.lastUsed > IDLE_TIMEOUT) {
-      entry.connector.disconnect().catch(() => {});
-      poolCache.delete(key);
+setInterval(
+  () => {
+    const now = Date.now();
+    const IDLE_TIMEOUT = 5 * 60 * 1000;
+    for (const [key, entry] of poolCache) {
+      if (now - entry.lastUsed > IDLE_TIMEOUT) {
+        entry.connector.disconnect().catch(() => {});
+        poolCache.delete(key);
+      }
     }
-  }
-}, 5 * 60 * 1000);
+  },
+  5 * 60 * 1000,
+);
 
 export async function getConnector(connectionId: string): Promise<DbConnector> {
   const cached = poolCache.get(connectionId);
@@ -113,4 +117,37 @@ export async function removeConnector(connectionId: string): Promise<void> {
     await cached.connector.disconnect();
     poolCache.delete(connectionId);
   }
+}
+
+export async function testRawConnection(
+  type: ConnectionType,
+  config: Record<string, unknown>,
+): Promise<boolean> {
+  let connector: DbConnector;
+  switch (type) {
+    case 'POSTGRESQL':
+      connector = createPostgresConnector(config);
+      break;
+    case 'MYSQL':
+      connector = createMysqlConnector(config);
+      break;
+    case 'MSSQL':
+      connector = createMssqlConnector(config);
+      break;
+    case 'SNOWFLAKE':
+      connector = createSnowflakeConnector(config);
+      break;
+    case 'BIGQUERY':
+      connector = createBigQueryConnector(config);
+      break;
+    case 'MONGODB':
+      connector = createMongoConnector(config);
+      break;
+    default:
+      throw new Error(`Unsupported database type: ${String(type)}`);
+  }
+
+  const isHealthy = await connector.testConnection();
+  await connector.disconnect().catch(() => {});
+  return isHealthy;
 }

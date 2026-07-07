@@ -4,7 +4,12 @@ import { prisma } from '../config/db.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { rbac } from '../middleware/rbac.js';
 import { encrypt } from '../utils/crypto.js';
-import { getConnector, removeConnector } from '../services/connectors/connectionFactory.js';
+import {
+  getConnector,
+  removeConnector,
+  testRawConnection,
+  type ConnectionType,
+} from '../services/connectors/connectionFactory.js';
 import { refreshSchemaCache, getSchemaMetadata } from '../services/connectors/schemaCache.js';
 
 const router = Router();
@@ -60,6 +65,20 @@ router.post('/', rbac('ORG_ADMIN'), async (req: Request, res: Response) => {
   }
 });
 
+router.post('/test', rbac('ORG_ADMIN'), async (req: Request, res: Response) => {
+  try {
+    const { type, config } = req.body as { type: ConnectionType; config: Record<string, unknown> };
+    if (!type || !config) {
+      return res.status(400).json({ success: false, message: 'Type and config are required' });
+    }
+
+    const isHealthy = await testRawConnection(type, config);
+    res.json({ success: isHealthy });
+  } catch (error) {
+    res.json({ success: false, message: (error as Error).message });
+  }
+});
+
 router.post('/:id/test', rbac('ORG_ADMIN'), async (req: Request<{ id: string }>, res: Response) => {
   try {
     const connector = await getConnector(req.params.id);
@@ -85,14 +104,18 @@ router.get('/:id/schema', async (req: Request<{ id: string }>, res: Response) =>
   }
 });
 
-router.post('/:id/schema/refresh', rbac('ORG_ADMIN'), async (req: Request<{ id: string }>, res: Response) => {
-  try {
-    const metadata = await refreshSchemaCache(req.params.id);
-    res.json(metadata);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
+router.post(
+  '/:id/schema/refresh',
+  rbac('ORG_ADMIN'),
+  async (req: Request<{ id: string }>, res: Response) => {
+    try {
+      const metadata = await refreshSchemaCache(req.params.id);
+      res.json(metadata);
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  },
+);
 
 router.delete('/:id', rbac('ORG_ADMIN'), async (req: Request<{ id: string }>, res: Response) => {
   try {
