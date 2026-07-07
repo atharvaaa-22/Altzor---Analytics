@@ -5,7 +5,6 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import { env } from './config/env.js';
 import { prisma } from './config/db.js';
-import { redis } from './config/redis.js';
 
 import { correlationIdMiddleware } from './middleware/correlationId.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
@@ -27,18 +26,21 @@ import { startWorkers } from './jobs/queue.js';
 
 const app = express();
 
-app.use(helmet({
-  contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
+  }),
+);
 
-app.use(cors({
-  origin: env.NODE_ENV === 'production'
-    ? ['https://app.platform.com']
-    : ['http://localhost:5173'],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-Id'],
-}));
+app.use(
+  cors({
+    origin:
+      env.NODE_ENV === 'production' ? ['https://app.platform.com'] : ['http://localhost:5173'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-Id'],
+  }),
+);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -61,7 +63,6 @@ app.use('/api', apiLimiter);
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    await redis.ping();
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(503).json({
@@ -99,7 +100,7 @@ app.use(globalErrorHandler);
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀 API server running on port ${env.PORT}`);
   logger.info(`   Environment: ${env.NODE_ENV}`);
-  
+
   void startWorkers();
 });
 
@@ -109,11 +110,10 @@ const gracefulShutdown = (signal: string): void => {
   server.close(() => {
     logger.info('HTTP server closed');
 
-    prisma.$disconnect()
+    prisma
+      .$disconnect()
       .then(() => {
         logger.info('Database disconnected');
-        redis.disconnect();
-        logger.info('Redis disconnected');
         process.exit(0);
       })
       .catch((err) => {

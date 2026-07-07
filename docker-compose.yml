@@ -16,12 +16,5 @@ services:
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
 
-  redis:
-    image: redis:7-alpine
-    container_name: analytics-redis
-    ports:
-      - "6379:6379"
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
-
 volumes:
   mysql_data:

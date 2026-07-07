@@ -1,11 +1,10 @@
 import crypto from 'crypto';
-import { redis } from '../../config/redis.js';
 import { env } from '../../config/env.js';
 import { getConnector } from '../connectors/connectionFactory.js';
 import type { QueryResult } from '../connectors/postgres.connector.js';
 
-const RESULT_CACHE_TTL = env.RESULT_CACHE_TTL_SECONDS; // 1 hour default
-const RESULT_CACHE_PREFIX = 'qresult:';
+const RESULT_CACHE_TTL_MS = env.RESULT_CACHE_TTL_SECONDS * 1000;
+const MAX_CACHED_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 
 export interface ExecutionResult extends QueryResult {
   cached: boolean;
@@ -13,13 +12,16 @@ export interface ExecutionResult extends QueryResult {
   cacheKey: string;
 }
 
+// In-memory result cache (replaces Redis)
+const resultCache = new Map<string, { data: ExecutionResult; expiresAt: number }>();
+
 function buildCacheKey(orgId: string, sql: string, connectionId: string): string {
   const hash = crypto
     .createHash('sha256')
     .update(`${sql}::${connectionId}`)
     .digest('hex')
     .slice(0, 32);
-  return `${RESULT_CACHE_PREFIX}${orgId}:${hash}`;
+  return `qresult:${orgId}:${hash}`;
 }
 
 export async function executeQuery(
@@ -30,14 +32,9 @@ export async function executeQuery(
 ): Promise<ExecutionResult> {
   const cacheKey = buildCacheKey(orgId, sql, connectionId);
 
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached) as ExecutionResult;
-      return { ...parsed, cached: true };
-    }
-  } catch {
-    // Redis unavailable — skip cache read
+  const entry = resultCache.get(cacheKey);
+  if (entry && Date.now() < entry.expiresAt) {
+    return { ...entry.data, cached: true };
   }
 
   const connector = await getConnector(connectionId);
@@ -47,7 +44,6 @@ export async function executeQuery(
   );
 
   const result = await connector.executeQuery(sql, effectiveTimeout);
-
   const costEstimate = estimateQueryCost(result.rowCount, result.executionTimeMs);
 
   const executionResult: ExecutionResult = {
@@ -57,13 +53,12 @@ export async function executeQuery(
     cacheKey,
   };
 
-  try {
-    const serialized = JSON.stringify(executionResult);
-    if (serialized.length < 5 * 1024 * 1024) {
-      await redis.setex(cacheKey, RESULT_CACHE_TTL, serialized);
-    }
-  } catch {
-    // Redis unavailable — skip cache write
+  const serialized = JSON.stringify(executionResult);
+  if (serialized.length < MAX_CACHED_SIZE_BYTES) {
+    resultCache.set(cacheKey, {
+      data: executionResult,
+      expiresAt: Date.now() + RESULT_CACHE_TTL_MS,
+    });
   }
 
   return executionResult;
@@ -76,10 +71,6 @@ function estimateQueryCost(rowCount: number, executionTimeMs: number): number {
   return Math.round((baseCost + rowCost + timeCost) * 10000) / 10000;
 }
 
-export async function invalidateQueryCache(cacheKey: string): Promise<void> {
-  try {
-    await redis.del(cacheKey);
-  } catch {
-    // Redis unavailable
-  }
+export function invalidateQueryCache(cacheKey: string): void {
+  resultCache.delete(cacheKey);
 }

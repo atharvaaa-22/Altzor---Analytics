@@ -1,21 +1,16 @@
-import { redis } from '../../config/redis.js';
 import { getConnector, type SchemaMetadata, type SchemaTable } from './connectionFactory.js';
 import { env } from '../../config/env.js';
 
-const SCHEMA_TTL = env.SCHEMA_CACHE_TTL_SECONDS;
-const SCHEMA_KEY_PREFIX = 'schema:';
+const SCHEMA_TTL_MS = env.SCHEMA_CACHE_TTL_SECONDS * 1000;
 const MAX_TABLES_PER_CHUNK = 100;
 
-export async function getSchemaMetadata(connectionId: string): Promise<SchemaMetadata> {
-  const cacheKey = `${SCHEMA_KEY_PREFIX}${connectionId}`;
+// In-memory schema cache (replaces Redis)
+const schemaCache = new Map<string, { data: SchemaMetadata; expiresAt: number }>();
 
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached) as SchemaMetadata;
-    }
-  } catch {
-    // Redis unavailable — skip cache read
+export async function getSchemaMetadata(connectionId: string): Promise<SchemaMetadata> {
+  const entry = schemaCache.get(connectionId);
+  if (entry && Date.now() < entry.expiresAt) {
+    return entry.data;
   }
 
   const connector = await getConnector(connectionId);
@@ -28,22 +23,12 @@ export async function getSchemaMetadata(connectionId: string): Promise<SchemaMet
     dialect: connectionId === 'default' || connectionId === 'local' ? 'SQLITE' : 'POSTGRESQL',
   };
 
-  try {
-    await redis.setex(cacheKey, SCHEMA_TTL, JSON.stringify(metadata));
-  } catch {
-    // Redis unavailable — skip cache write
-  }
-
+  schemaCache.set(connectionId, { data: metadata, expiresAt: Date.now() + SCHEMA_TTL_MS });
   return metadata;
 }
 
 export async function refreshSchemaCache(connectionId: string): Promise<SchemaMetadata> {
-  const cacheKey = `${SCHEMA_KEY_PREFIX}${connectionId}`;
-  try {
-    await redis.del(cacheKey);
-  } catch {
-    // Redis unavailable
-  }
+  schemaCache.delete(connectionId);
   return getSchemaMetadata(connectionId);
 }
 

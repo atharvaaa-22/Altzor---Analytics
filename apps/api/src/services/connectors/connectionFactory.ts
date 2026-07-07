@@ -1,13 +1,18 @@
 import { prisma } from '../../config/db.js';
 import { decrypt } from '../../utils/crypto.js';
-import { createPostgresConnector, type DbConnector } from './postgres.connector.js';
+import {
+  createPostgresConnector,
+  type DbConnector,
+  type QueryResult,
+} from './postgres.connector.js';
 import { createMysqlConnector } from './mysql.connector.js';
 import { createMssqlConnector } from './mssql.connector.js';
 import { createSnowflakeConnector } from './snowflake.connector.js';
 import { createBigQueryConnector } from './bigquery.connector.js';
 import { createMongoConnector } from './mongo.connector.js';
 
-export type ConnectionType = 'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB' | 'SQLITE';
+export type ConnectionType =
+  'POSTGRESQL' | 'MYSQL' | 'MSSQL' | 'SNOWFLAKE' | 'BIGQUERY' | 'MONGODB' | 'SQLITE';
 
 export type { DbConnector };
 
@@ -38,16 +43,19 @@ export interface SchemaMetadata {
 
 const poolCache = new Map<string, { connector: DbConnector; lastUsed: number }>();
 
-setInterval(() => {
-  const now = Date.now();
-  const IDLE_TIMEOUT = 5 * 60 * 1000;
-  for (const [key, entry] of poolCache) {
-    if (now - entry.lastUsed > IDLE_TIMEOUT) {
-      entry.connector.disconnect().catch(() => {});
-      poolCache.delete(key);
+setInterval(
+  () => {
+    const now = Date.now();
+    const IDLE_TIMEOUT = 5 * 60 * 1000;
+    for (const [key, entry] of poolCache) {
+      if (now - entry.lastUsed > IDLE_TIMEOUT) {
+        entry.connector.disconnect().catch(() => {});
+        poolCache.delete(key);
+      }
     }
-  }
-}, 5 * 60 * 1000);
+  },
+  5 * 60 * 1000,
+);
 
 export async function getConnector(connectionId: string): Promise<DbConnector> {
   const cached = poolCache.get(connectionId);
@@ -126,7 +134,7 @@ function sanitizeBigInt(value: unknown): unknown {
   if (value !== null && typeof value === 'object') {
     if (Array.isArray(value)) return value.map(sanitizeBigInt);
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitizeBigInt(v)])
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitizeBigInt(v)]),
     );
   }
   return value;
@@ -134,7 +142,7 @@ function sanitizeBigInt(value: unknown): unknown {
 
 function createSqliteConnector(): DbConnector {
   return {
-    async executeQuery(sql: string, _timeoutMs: number): Promise<unknown> {
+    async executeQuery(sql: string, _timeoutMs: number): Promise<QueryResult> {
       const normalized = sql.trim().toUpperCase();
       const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE'];
       for (const keyword of forbidden) {
@@ -144,17 +152,18 @@ function createSqliteConnector(): DbConnector {
       }
 
       const start = Date.now();
-      const rawRows = (await prisma.$queryRawUnsafe(sql));
+      const rawRows = await prisma.$queryRawUnsafe(sql);
 
       // Prisma returns COUNT(*) and other aggregates as BigInt — convert to numbers
       const rows = sanitizeBigInt(rawRows) as Record<string, unknown>[];
 
-      const columns = rows.length > 0
-        ? Object.keys(rows[0]!).map((key) => ({
-            name: key,
-            dataType: typeof rows[0]![key] === 'number' ? 'INTEGER' : 'TEXT',
-          }))
-        : [];
+      const columns =
+        rows.length > 0
+          ? Object.keys(rows[0]!).map((key) => ({
+              name: key,
+              dataType: typeof rows[0]![key] === 'number' ? 'INTEGER' : 'TEXT',
+            }))
+          : [];
 
       return {
         rows,
@@ -166,26 +175,24 @@ function createSqliteConnector(): DbConnector {
 
     /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any */
     async discoverSchema(): Promise<SchemaTable[]> {
-      const tablesResult = (await prisma.$queryRawUnsafe(
-        `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`
-      ));
+      const tablesResult = await prisma.$queryRawUnsafe(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_prisma_%'`,
+      );
 
       const tables: SchemaTable[] = [];
 
       for (const t of tablesResult) {
         const tableName = t.name;
 
-        const infoResult = (await prisma.$queryRawUnsafe(
-          `PRAGMA table_info("${tableName}")`
-        ));
+        const infoResult = await prisma.$queryRawUnsafe(`PRAGMA table_info("${tableName}")`);
 
         const columns: SchemaColumn[] = [];
         for (const col of infoResult) {
           let sampleValues: string[] = [];
           try {
-            const sampleResult = (await prisma.$queryRawUnsafe(
-              `SELECT DISTINCT "${col.name}" AS val FROM "${tableName}" WHERE "${col.name}" IS NOT NULL LIMIT 5`
-            ));
+            const sampleResult = await prisma.$queryRawUnsafe(
+              `SELECT DISTINCT "${col.name}" AS val FROM "${tableName}" WHERE "${col.name}" IS NOT NULL LIMIT 5`,
+            );
             sampleValues = sampleResult.map((r) => String(r.val));
           } catch {
             // ignore
@@ -201,9 +208,9 @@ function createSqliteConnector(): DbConnector {
           });
         }
 
-        const countResult = (await prisma.$queryRawUnsafe(
-          `SELECT COUNT(*) as count FROM "${tableName}"`
-        ));
+        const countResult = await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*) as count FROM "${tableName}"`,
+        );
         const rowCount = countResult[0] ? Number(countResult[0].count) : 0;
 
         tables.push({
