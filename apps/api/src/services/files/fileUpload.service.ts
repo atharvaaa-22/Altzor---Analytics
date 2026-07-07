@@ -145,7 +145,7 @@ function parseXlsx(buffer: Buffer): ParsedFile {
 
   // Filter out rows that are completely empty
   const filteredRecords = records.filter((row) =>
-    Object.values(row).some((v) => v !== null && v !== undefined && String(v).trim() !== '')
+    Object.values(row).some((v) => v !== null && v !== undefined && String(v).trim() !== ''),
   );
 
   if (filteredRecords.length === 0) throw new Error('Excel sheet has no data rows');

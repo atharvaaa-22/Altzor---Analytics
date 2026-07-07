@@ -9,15 +9,16 @@ const router = Router();
 router.use(authMiddleware);
 
 router.post('/', async (req: Request, res: Response) => {
-  const { connectionId: rawConnectionId } = z.object({
-    connectionId: z.string().optional(),
-  }).parse(req.body);
+  const { connectionId: rawConnectionId } = z
+    .object({
+      connectionId: z.string().optional(),
+    })
+    .parse(req.body);
 
   // 'default' and 'local' are virtual SQLite connections — not real DB records.
   // Store null so the FK to DatabaseConnection is satisfied.
-  const connectionId = (rawConnectionId === 'default' || rawConnectionId === 'local')
-    ? undefined
-    : rawConnectionId;
+  const connectionId =
+    rawConnectionId === 'default' || rawConnectionId === 'local' ? undefined : rawConnectionId;
 
   const conversation = await prisma.conversation.create({
     data: {
@@ -31,7 +32,11 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 router.get('/', async (req: Request, res: Response) => {
-  const querySchema = z.object({ search: z.string().optional(), page: z.string().default('1'), limit: z.string().default('20') });
+  const querySchema = z.object({
+    search: z.string().optional(),
+    page: z.string().default('1'),
+    limit: z.string().default('20'),
+  });
   const { search, page, limit } = querySchema.parse(req.query);
 
   const where = {
@@ -77,7 +82,7 @@ router.post('/:id/messages', queryLimiter, async (req: Request<{ id: string }>, 
 
     const sendEvent = (event: string, data: unknown): void => {
       const payload = JSON.stringify(data, (_key, val: unknown) =>
-        typeof val === 'bigint' ? Number(val) : val
+        typeof val === 'bigint' ? Number(val) : val,
       );
       res.write(`event: ${event}\ndata: ${payload}\n\n`);
     };
@@ -124,7 +129,9 @@ router.post('/:id/messages', queryLimiter, async (req: Request<{ id: string }>, 
     res.end();
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode ?? 500;
-    res.write(`event: error\ndata: ${JSON.stringify({ error: (error as Error).message, status })}\n\n`);
+    res.write(
+      `event: error\ndata: ${JSON.stringify({ error: (error as Error).message, status })}\n\n`,
+    );
     res.end();
   }
 });
@@ -151,10 +158,14 @@ router.get('/:id/messages', async (req: Request<{ id: string }>, res: Response) 
     },
   });
 
-  const parsedMessages = messages.map(msg => ({
+  const parsedMessages = messages.map((msg) => ({
     ...msg,
-    queryResults: msg.queryResults ? (JSON.parse(msg.queryResults) as Record<string, unknown>[]) : null,
-    resultMetadata: msg.resultMetadata ? (JSON.parse(msg.resultMetadata) as Record<string, unknown>) : null,
+    queryResults: msg.queryResults
+      ? (JSON.parse(msg.queryResults) as Record<string, unknown>[])
+      : null,
+    resultMetadata: msg.resultMetadata
+      ? (JSON.parse(msg.resultMetadata) as Record<string, unknown>)
+      : null,
     lineage: msg.lineage ? (JSON.parse(msg.lineage) as Record<string, unknown>) : null,
   }));
 
@@ -166,21 +177,24 @@ const feedbackSchema = z.object({
   comment: z.string().optional(),
 });
 
-router.post('/:id/messages/:msgId/feedback', async (req: Request<{ id: string, msgId: string }>, res: Response) => {
-  const { type, comment } = feedbackSchema.parse(req.body);
+router.post(
+  '/:id/messages/:msgId/feedback',
+  async (req: Request<{ id: string; msgId: string }>, res: Response) => {
+    const { type, comment } = feedbackSchema.parse(req.body);
 
-  const feedback = await prisma.queryFeedback.upsert({
-    where: { messageId: req.params.msgId },
-    update: { type, comment },
-    create: {
-      messageId: req.params.msgId,
-      userId: req.user!.userId,
-      type,
-      comment,
-    },
-  });
+    const feedback = await prisma.queryFeedback.upsert({
+      where: { messageId: req.params.msgId },
+      update: { type, comment },
+      create: {
+        messageId: req.params.msgId,
+        userId: req.user!.userId,
+        type,
+        comment,
+      },
+    });
 
-  res.json(feedback);
-});
+    res.json(feedback);
+  },
+);
 
 export { router as conversationRoutes };

@@ -7,7 +7,8 @@ export interface UseChatStreamResult {
 }
 
 export const useChatStream = (): UseChatStreamResult => {
-  const { conversationId, setConversationId, addMessage, updateLastMessage, setStreaming } = useActiveChatStore();
+  const { conversationId, setConversationId, addMessage, updateLastMessage, setStreaming } =
+    useActiveChatStore();
 
   const sendPrompt = async (text: string): Promise<void> => {
     addMessage({ id: Date.now().toString(), role: 'user', content: text });
@@ -22,7 +23,9 @@ export const useChatStream = (): UseChatStreamResult => {
 
       // 1. If conversationId is null, create a new conversation first
       if (!activeConversationId) {
-        const connRes = await api.post<{ id: string }>('/conversations', { connectionId: 'default' });
+        const connRes = await api.post<{ id: string }>('/conversations', {
+          connectionId: 'default',
+        });
         activeConversationId = connRes.id;
         setConversationId(activeConversationId);
       }
@@ -84,7 +87,7 @@ export const useChatStream = (): UseChatStreamResult => {
               currentSql = data.sql as string;
               currentExplanation = data.explanation as string;
               updateLastMessage(
-                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n_*Status: Running query...*_`
+                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n_*Status: Running query...*_`,
               );
               break;
             }
@@ -102,7 +105,7 @@ export const useChatStream = (): UseChatStreamResult => {
                         const val = row[c.name];
                         return val === null || val === undefined ? 'null' : String(val);
                       })
-                      .join(' | ')
+                      .join(' | '),
                   )
                   .join('\n');
                 tableMarkdown = `### Query Results (${String(data.rowCount)} rows)\n\n| ${colHeaders} |\n| ${colSeparators} |\n| ${tableRows} |\n\n${
@@ -112,7 +115,7 @@ export const useChatStream = (): UseChatStreamResult => {
                 tableMarkdown = `### Query Results\n\nNo rows returned.\n\n`;
               }
               updateLastMessage(
-                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}_*Status: Analyzing results...*_`
+                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}_*Status: Analyzing results...*_`,
               );
               break;
             }
@@ -121,17 +124,18 @@ export const useChatStream = (): UseChatStreamResult => {
               const keyFindings = (data.keyFindings as string[]) || [];
               let findingsMarkdown = '';
               if (keyFindings.length > 0) {
-                findingsMarkdown = `\n\n**Key Findings:**\n` + keyFindings.map((f) => `- ${f}`).join('\n');
+                findingsMarkdown =
+                  `\n\n**Key Findings:**\n` + keyFindings.map((f) => `- ${f}`).join('\n');
               }
               narrativeMarkdown = `### Analysis Summary\n${summary}${findingsMarkdown}`;
               updateLastMessage(
-                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}\n\n${narrativeMarkdown}`
+                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}\n\n${narrativeMarkdown}`,
               );
               break;
             }
             case 'complete': {
               updateLastMessage(
-                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}\n\n${narrativeMarkdown}`
+                `### AI Generated SQL\n\n\`\`\`sql\n${currentSql}\n\`\`\`\n\n*Explanation:* ${currentExplanation}\n\n${tableMarkdown}\n\n${narrativeMarkdown}`,
               );
               break;
             }

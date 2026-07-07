@@ -11,10 +11,9 @@ import { detectChartType } from '../ai/chartDetector.js';
 /** Safely JSON-stringify values that may contain BigInt (from SQLite raw queries). */
 function safeBigIntStringify(value: unknown): string {
   return JSON.stringify(value, (_key: string, val: unknown): unknown =>
-    typeof val === 'bigint' ? Number(val) : val
+    typeof val === 'bigint' ? Number(val) : val,
   );
 }
-
 
 export interface ConversationResponse {
   messageId: string;
@@ -50,9 +49,8 @@ export async function processQuestion(
 ): Promise<ConversationResponse> {
   // 'default' and 'local' are virtual SQLite connection IDs — not real DB records.
   // Use undefined so Prisma's optional FK to DatabaseConnection stays null.
-  const dbConnectionId = (connectionId === 'default' || connectionId === 'local')
-    ? undefined
-    : connectionId;
+  const dbConnectionId =
+    connectionId === 'default' || connectionId === 'local' ? undefined : connectionId;
 
   await prisma.message.create({
     data: {
@@ -74,11 +72,7 @@ export async function processQuestion(
     select: { role: true, content: true },
   });
 
-  const systemPrompt = buildSystemPrompt(
-    schema.dialect,
-    schema.tables,
-    semanticLayer,
-  );
+  const systemPrompt = buildSystemPrompt(schema.dialect, schema.tables, semanticLayer);
   const messages = buildMessages(history, question);
   const aiResponse = await callAi(systemPrompt, messages);
 

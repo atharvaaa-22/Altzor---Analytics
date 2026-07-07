@@ -129,6 +129,39 @@ export async function removeConnector(connectionId: string): Promise<void> {
   }
 }
 
+export async function testRawConnection(
+  type: ConnectionType,
+  config: Record<string, unknown>,
+): Promise<boolean> {
+  let connector: DbConnector;
+  switch (type) {
+    case 'POSTGRESQL':
+      connector = createPostgresConnector(config);
+      break;
+    case 'MYSQL':
+      connector = createMysqlConnector(config);
+      break;
+    case 'MSSQL':
+      connector = createMssqlConnector(config);
+      break;
+    case 'SNOWFLAKE':
+      connector = createSnowflakeConnector(config);
+      break;
+    case 'BIGQUERY':
+      connector = createBigQueryConnector(config);
+      break;
+    case 'MONGODB':
+      connector = createMongoConnector(config);
+      break;
+    default:
+      throw new Error(`Unsupported database type: ${String(type)}`);
+  }
+
+  const isHealthy = await connector.testConnection();
+  await connector.disconnect().catch(() => {});
+  return isHealthy;
+}
+
 function sanitizeBigInt(value: unknown): unknown {
   if (typeof value === 'bigint') return Number(value);
   if (value !== null && typeof value === 'object') {

@@ -24,7 +24,8 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
+      content:
+        'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
     },
   ],
   isStreaming: false,
@@ -41,7 +42,7 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
     set((state) => {
       const newMessages = [...state.messages];
       if (newMessages.length > 0) {
-        newMessages[newMessages.length - 1]!.content = content;
+        newMessages[newMessages.length - 1].content = content;
       }
       return { messages: newMessages };
     });
@@ -53,7 +54,8 @@ export const useActiveChatStore = create<ActiveChatState>((set) => ({
         {
           id: '1',
           role: 'assistant',
-          content: 'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
+          content:
+            'Hello! I am Altzor AI. Ask me anything about your uploaded data — I will generate SQL and show you the results.',
         },
       ],
     });

@@ -60,12 +60,10 @@ export function buildMessages(
   conversationHistory: Array<{ role: string; content: string }>,
   currentQuestion: string,
 ): AiMessage[] {
-  const history = conversationHistory
-    .slice(-20)
-    .map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+  const history = conversationHistory.slice(-20).map((m) => ({
+    role: m.role as 'user' | 'assistant',
+    content: m.content,
+  }));
 
   history.push({
     role: 'user',
