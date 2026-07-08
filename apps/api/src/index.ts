@@ -5,7 +5,6 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import { env } from './config/env.js';
 import { prisma } from './config/db.js';
-import { redis } from './config/redis.js';
 
 import { correlationIdMiddleware } from './middleware/correlationId.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
@@ -64,7 +63,6 @@ app.use('/api', apiLimiter);
 app.get('/health', async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    await redis.ping();
     res.json({ status: 'healthy', timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(503).json({
@@ -116,8 +114,6 @@ const gracefulShutdown = (signal: string): void => {
       .$disconnect()
       .then(() => {
         logger.info('Database disconnected');
-        redis.disconnect();
-        logger.info('Redis disconnected');
         process.exit(0);
       })
       .catch((err) => {

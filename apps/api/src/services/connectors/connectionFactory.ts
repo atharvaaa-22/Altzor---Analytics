@@ -1,6 +1,10 @@
 import { prisma } from '../../config/db.js';
 import { decrypt } from '../../utils/crypto.js';
-import { createPostgresConnector, type DbConnector } from './postgres.connector.js';
+import {
+  createPostgresConnector,
+  type DbConnector,
+  type QueryResult,
+} from './postgres.connector.js';
 import { createMysqlConnector } from './mysql.connector.js';
 import { createMssqlConnector } from './mssql.connector.js';
 import { createSnowflakeConnector } from './snowflake.connector.js';
@@ -171,8 +175,7 @@ function sanitizeBigInt(value: unknown): unknown {
 
 function createSqliteConnector(): DbConnector {
   return {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async executeQuery(sql: string, _timeoutMs: number): Promise<any> {
+    async executeQuery(sql: string, _timeoutMs: number): Promise<QueryResult> {
       const normalized = sql.trim().toUpperCase();
       const forbidden = ['INSERT', 'UPDATE', 'DELETE', 'DROP', 'TRUNCATE', 'ALTER', 'CREATE'];
       for (const keyword of forbidden) {
@@ -223,7 +226,7 @@ function createSqliteConnector(): DbConnector {
             const sampleResult = await prisma.$queryRawUnsafe(
               `SELECT DISTINCT "${col.name}" AS val FROM "${tableName}" WHERE "${col.name}" IS NOT NULL LIMIT 5`,
             );
-            sampleValues = sampleResult.map((r) => String(r.val));
+            sampleValues = sampleResult.map((r: any) => String(r.val));
           } catch {
             // ignore
           }

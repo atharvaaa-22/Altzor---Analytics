@@ -1,8 +1,10 @@
 import { prisma } from '../../config/db.js';
-import { redis } from '../../config/redis.js';
 
 const SEMANTIC_CACHE_PREFIX = 'semantic:';
-const SEMANTIC_CACHE_TTL = 300; // 5 minutes
+const SEMANTIC_CACHE_TTL_MS = 300 * 1000; // 5 minutes
+
+// In-memory semantic layer cache (replaces Redis)
+const semanticCache = new Map<string, { data: SemanticLayer; expiresAt: number }>();
 
 export interface MetricInput {
   name: string;
@@ -37,7 +39,7 @@ export async function createMetric(
     },
   });
 
-  await invalidateSemanticCache(orgId);
+  invalidateSemanticCache(orgId);
   return { id: metric.id, version: metric.version };
 }
 
@@ -67,7 +69,7 @@ export async function updateMetric(
     },
   });
 
-  await invalidateSemanticCache(orgId);
+  invalidateSemanticCache(orgId);
   return { id: newMetric.id, version: newMetric.version };
 }
 
@@ -76,7 +78,7 @@ export async function deleteMetric(metricId: string, orgId: string): Promise<voi
     where: { id: metricId },
     data: { isActive: false },
   });
-  await invalidateSemanticCache(orgId);
+  invalidateSemanticCache(orgId);
 }
 
 export async function createDimension(
@@ -96,7 +98,7 @@ export async function createDimension(
     },
   });
 
-  await invalidateSemanticCache(orgId);
+  invalidateSemanticCache(orgId);
   return { id: dimension.id, version: dimension.version };
 }
 
@@ -127,7 +129,7 @@ export async function updateDimension(
     },
   });
 
-  await invalidateSemanticCache(orgId);
+  invalidateSemanticCache(orgId);
   return { id: newDim.id, version: newDim.version };
 }
 
@@ -156,11 +158,9 @@ export interface SemanticLayer {
 export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
   const cacheKey = `${SEMANTIC_CACHE_PREFIX}${orgId}`;
 
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) return JSON.parse(cached) as SemanticLayer;
-  } catch {
-    // Redis unavailable — skip cache read
+  const entry = semanticCache.get(cacheKey);
+  if (entry && Date.now() < entry.expiresAt) {
+    return entry.data;
   }
 
   const [metrics, dimensions] = await Promise.all([
@@ -196,11 +196,7 @@ export async function getSemanticLayer(orgId: string): Promise<SemanticLayer> {
     })),
   };
 
-  try {
-    await redis.setex(cacheKey, SEMANTIC_CACHE_TTL, JSON.stringify(layer));
-  } catch {
-    // Redis unavailable — skip cache write
-  }
+  semanticCache.set(cacheKey, { data: layer, expiresAt: Date.now() + SEMANTIC_CACHE_TTL_MS });
 
   return layer;
 }
@@ -235,10 +231,6 @@ export function formatSemanticForPrompt(layer: SemanticLayer): string {
   return prompt;
 }
 
-async function invalidateSemanticCache(orgId: string): Promise<void> {
-  try {
-    await redis.del(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
-  } catch {
-    // Redis unavailable
-  }
+function invalidateSemanticCache(orgId: string): void {
+  semanticCache.delete(`${SEMANTIC_CACHE_PREFIX}${orgId}`);
 }
